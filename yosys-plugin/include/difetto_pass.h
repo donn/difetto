@@ -26,14 +26,25 @@ struct DifettoPass: public Yosys::Pass {
     struct Arg {
         std::string help;
         std::optional<std::string> argument = std::nullopt;
+        bool required = false;
         bool multiple = false;
     };
     
     DifettoPass(std::string name, std::string short_help = "** document me **");
     
+    void resolve_wire(
+        const std::string &target_wire_raw,
+        Yosys::RTLIL::Module *module,
+        Yosys::IdString &wire_id,
+        Yosys::RTLIL::Wire *&wire,
+        bool &inverted
+    );
+    Yosys::dict<Yosys::RTLIL::IdString, bool> process_exclusions(
+        const Yosys::pool<std::string>& raw_exclusions
+    );
+    
     virtual const std::map<std::string, Arg>& get_args() = 0;
     virtual std::string_view get_description() = 0;
-    
     virtual void help() override;
     virtual const std::unordered_map<std::string, std::vector<std::string>> parse_args(std::vector<std::string>& args, Yosys::RTLIL::Design *design);
 };

@@ -2,7 +2,7 @@ import json
 import libparse
 from pathlib import Path
 
-in_file = "tech/sky130_fd_sc_hd__tt_025C_1v80.lib"
+in_file = "sky130_fd_sc_hd__tt_025C_1v80.lib"
 if False:
     import ciel
     from ciel.source import StaticWebDataSource

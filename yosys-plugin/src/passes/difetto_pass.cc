@@ -64,6 +64,13 @@ void DifettoPass::help() {
 const std::unordered_map<std::string, std::vector<std::string>> DifettoPass::parse_args(std::vector<std::string>& args, RTLIL::Design *design) {
     size_t argidx;
     auto arg_definitions = get_args();
+    pool<std::string> remaining_required_args;
+    
+    for (auto& [name, arg]: arg_definitions) {
+        if (arg.required) {
+            remaining_required_args.insert(name);
+        }
+    }
     
     std::unordered_map<std::string, std::vector<std::string>> result;
     
@@ -83,6 +90,9 @@ const std::unordered_map<std::string, std::vector<std::string>> DifettoPass::par
         if (argidx + 1 >= args.size()) {
             log_cmd_error("Option %s requires an argument.\n", arg.c_str());
         }
+        if (remaining_required_args.count(name)) {
+            remaining_required_args.erase(name);
+        }
         if (arg_definition.multiple && result.find(name) != result.end()) {
             result[name].push_back(args[++argidx]);
         } else {
@@ -93,6 +103,46 @@ const std::unordered_map<std::string, std::vector<std::string>> DifettoPass::par
       break;
     }
     
+    if (remaining_required_args.size()) {
+        auto any = remaining_required_args.pop();
+        log_cmd_error("Option %s requires an argument.\n", any.c_str());
+    }
+    
     extra_args(args, argidx, design);
+    return result;
+}
+
+void DifettoPass::resolve_wire(
+    const std::string &target_wire_raw,
+    Yosys::RTLIL::Module *module,
+    IdString &wire_id,
+    Yosys::RTLIL::Wire *&wire,
+    bool &inverted
+) {
+    const char *wire_name = target_wire_raw.c_str();
+    inverted = false;
+    if (wire_name[0] == '!') {
+      inverted = true;
+      wire_name++;
+    }
+    wire_id = IdString(std::string("\\") + wire_name);
+    if (module) {   
+        if (module->wires_.count(wire_id) == 0) {
+            log_error("No wire %s found in module %s.\n", wire_id.c_str(), module->name.c_str());
+        }
+        wire = module->wires_[wire_id];
+    }
+}
+
+dict<IdString, bool> DifettoPass::process_exclusions(const pool<std::string>& raw_exclusions) {
+    dict<IdString, bool> result;
+    for (size_t i = 0; i < raw_exclusions.size(); i += 1) {
+        auto &wire = *raw_exclusions.element(i);
+        IdString id;
+        Wire *dont_care = nullptr;
+        bool inverted;
+        resolve_wire(wire, nullptr, id, dont_care, inverted);
+        result[id] = inverted;
+    }
     return result;
 }

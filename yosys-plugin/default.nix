@@ -19,6 +19,8 @@
   lib,
   yosys,
   clang-tools_16,
+  python3,
+  quaigh
 }:
 yosys.stdenv.mkDerivation (finalAttrs: {
   pname = "yosys-difetto";
@@ -34,8 +36,12 @@ yosys.stdenv.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [
     clang-tools_16
+    
+    # nativeCheckInputs is a broken mess and I don't want to deal with it rn
+    python3.pkgs.nl2bench
+    quaigh
   ];
-
+  
   meta = {
     description = "";
     license = lib.licenses.mit;

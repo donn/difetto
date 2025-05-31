@@ -1,13 +1,12 @@
 plugin -i ../difetto.so
 read_liberty -ignore_miss_func -lib tech/sky130_fd_sc_hd__tt_025C_1v80.lib
-read_verilog -sv ./spm.v
+read_verilog -sv ./src/spm.v
 hierarchy -top spm
-opt_clean
 flatten
-boundary_scan -test_mode test -clock clk -exclude_io rst -exclude_io sce -exclude_io sci -exclude_io sco -exclude_io test
+boundary_scan -test_mode test -clock clk -exclude_io rstn -exclude_io sce -exclude_io sci -exclude_io sco
 write_verilog -noexpr -noattr post_bs.v
-proc
-simplemap
-dfflibmap -liberty tech/sky130_fd_sc_hd__tt_025C_1v80.lib 
+synth -top spm
+dfflibmap -liberty tech/sky130_fd_sc_hd__tt_025C_1v80.lib
+abc -liberty tech/sky130_fd_sc_hd__tt_025C_1v80.lib
 scan_replace -json_mapping tech/sky130_mapping.json
-write_verilog -noexpr -noattr out.v
+write_verilog -noexpr out.v

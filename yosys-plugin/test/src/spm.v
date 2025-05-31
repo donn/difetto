@@ -18,7 +18,7 @@
 // - Product y (Output bit-serial)
 module spm #(parameter bits=32) (
     input clk,
-    input rst,
+    input rstn,
     input x,
     input[bits-1: 0] a,
     output y,
@@ -48,7 +48,7 @@ module spm #(parameter bits=32) (
 
     delayed_serial_adder dsa[bits-1:0](
         .clk(clk),
-        .rst(rst_n_out),
+        .rstn(rst_n_out),
         .x(x),
         .a(a_flip),
         .y_in(y_chain[bits-1:0]),
@@ -59,7 +59,7 @@ endmodule
 
 module delayed_serial_adder(
     input clk,
-    input rst,
+    input rstn,
     input x,
     input a,
     input y_in,
@@ -72,8 +72,8 @@ module delayed_serial_adder(
     wire g = x & a;
     assign {last_carry_next, y_out_next} = g + y_in + last_carry;
 
-    always @ (posedge clk or negedge rst) begin
-        if (!rst) begin
+    always @ (posedge clk or negedge rstn) begin
+        if (!rstn) begin
             last_carry <= 1'b0;
             y_out <= 1'b0;
         end else begin

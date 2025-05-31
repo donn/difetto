@@ -30,10 +30,10 @@ struct BoundaryScanPass : public DifettoPass {
       : DifettoPass("boundary_scan", "adds boundary scan to selection") {}
   
   const std::map<std::string, Arg> args = {
-    {"test_mode", Arg{"Name of wire (port or otherwise) to be used as the test mode select.", "wire"}},
-    {"clock", Arg{"Name of wire (port or otherwise) to be used as the clock for the boundary scan registers. Prefix with ! for negative edge.", "wire"}},
+    {"test_mode", Arg{"Name of wire (port or otherwise) to be used as the test mode select. Prefix with ! to invert.", "wire", true}},
+    {"clock", Arg{"Name of wire (port or otherwise) to be used as the clock for the boundary scan registers. Prefix with ! for negative edge.", "wire", true}},
     // {"macro", Arg{"Macro instances to also add boundary scan around. To ignore certain ports, pass them as \"-exclude_io instance_name/port_name\"", "instance", true}},
-    {"exclude_io", Arg{"Top-level pins to ignore. The clock and test_mode wires will always be added to this list.", "io", true}},
+    {"exclude_io", Arg{"Top-level pins to ignore. The clock and test_mode wires will always be added to this list.", "io", false, true}},
   };
   const std::string description = "Creates boundary scan Yosys primitives for "
     "inputs and outputs. ";
@@ -41,36 +41,22 @@ struct BoundaryScanPass : public DifettoPass {
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
   
-  void boundary_scan(RTLIL::Module *module, std::string test_mode_wire_name, std::string clock_wire_name_raw, const pool<std::string>& exclusions) {
-    // Resolve test mode wire
-    IdString test_mode_wire_id("\\" + test_mode_wire_name);
-    if (module->wires_.count(test_mode_wire_id) == 0) {
-      log_error("No wire %s found in module %s.\n", test_mode_wire_id.c_str(), module->name.c_str());
-    }
-    auto test_mode_wire = module->wires_[test_mode_wire_id];
-    
-    // Resolve clock wire
-    const char *clock_wire_name = clock_wire_name_raw.c_str();
-    bool clock_posedge = true;
-    if (clock_wire_name[0] == '!') {
-      clock_posedge = false;
-      clock_wire_name++;
-    }
-    IdString clock_id(std::string("\\") + clock_wire_name);
-    if (module->wires_.count(clock_id) == 0) {
-      log_error("No wire %s found in module %s.\n", clock_id.c_str(), module->name.c_str());
-    }
-    auto clock_wire = module->wires_[clock_id];
-    
-    pool<IdString> excluded_ids;
-    for (auto& exclusion: exclusions) {
-      excluded_ids.insert(IdString("\\" + exclusion));
-    }
+  void boundary_scan(RTLIL::Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions) {
+    // Resolve target wires
+    IdString test_mode_wire_id;
+    RTLIL::Wire *test_mode_wire = nullptr;
+    bool test_inverted = false;
+    resolve_wire(test_mode_wire_name_raw, module, test_mode_wire_id, test_mode_wire, test_inverted);
+
+    IdString clock_wire_id;
+    RTLIL::Wire *clock_wire = nullptr;
+    bool clock_negedge = false;
+    resolve_wire(clock_wire_name_raw, module, clock_wire_id, clock_wire, clock_negedge);
     
     // Collect IOs
-    std::vector<RTLIL::Wire*> inputs, outputs;
+    vector<RTLIL::Wire*> inputs, outputs;
     for (auto [id, wire]: module->wires_) {
-      if (excluded_ids.count(id)) {
+      if (exclusions.count(id)) {
         continue;
       } 
       if (wire->port_output) {
@@ -103,8 +89,8 @@ struct BoundaryScanPass : public DifettoPass {
       IdString mux_id(mux_name);
       auto muxed_spec = module->Mux(
         mux_id,
-        SigSpec(input),
-        SigSpec(stored),
+        test_inverted ? SigSpec(stored): SigSpec(input),
+        test_inverted ? SigSpec(input) : SigSpec(stored),
         test_mode_wire
       );
       module->connect(resolved_input, muxed_spec);
@@ -117,7 +103,7 @@ struct BoundaryScanPass : public DifettoPass {
         clock_wire,
         SigSpec(resolved_input),
         SigSpec(stored),
-        clock_posedge
+        !clock_negedge
       );
     }
     
@@ -139,7 +125,7 @@ struct BoundaryScanPass : public DifettoPass {
         clock_wire,
         SigSpec(output),
         SigSpec(stored),
-        clock_posedge
+        !clock_negedge
       );
       
     }
@@ -150,23 +136,17 @@ struct BoundaryScanPass : public DifettoPass {
                        RTLIL::Design *design) override {
     log_header(design, "Executing BOUNDARY_SCAN pass.\n");
     auto parsed_args = parse_args(args, design);
-  
-    if (parsed_args["test_mode"].size() == 0) {
-      log_cmd_error("-test_mode wire is required!\n");
-    }
-    if (parsed_args["clock"].size() == 0) {
-      log_cmd_error("-test_mode wire is required!\n");
-    }
+    
     std::string test_mode_wire_name = parsed_args["test_mode"].at(0);
     std::string clock_wire_name = parsed_args["clock"].at(0);
-    
-    pool<std::string> exclusions = {
+    pool<std::string> raw_exclusions = {
       test_mode_wire_name,
       clock_wire_name
     };
     for (auto& el: parsed_args["exclude_io"]) {
-      exclusions.insert(el);
+      raw_exclusions.insert(el);
     }
+    auto exclusions = process_exclusions(raw_exclusions);
     
     for (auto module : design->selected_modules()) {
       boundary_scan(module, test_mode_wire_name, clock_wire_name, exclusions);

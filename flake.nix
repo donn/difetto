@@ -1,9 +1,16 @@
 {
-  inputs.nix-eda.url = "github:fossi-foundation/nix-eda";
+  inputs = {
+    nix-eda.url = "github:fossi-foundation/nix-eda";
+    nl2bench = {
+      url = "github:donn/nl2bench";
+      inputs.nix-eda.follows = "nix-eda";
+    };
+  };
 
   outputs = {
     self,
     nix-eda,
+    nl2bench,
     ...
   }: let
     nixpkgs = nix-eda.inputs.nixpkgs;
@@ -11,6 +18,7 @@
   in {
     overlays = {
       default = lib.composeManyExtensions [
+      nl2bench.overlays.default
         (pkgs': pkgs: let
           callPackage = lib.callPackageWith pkgs';
         in {

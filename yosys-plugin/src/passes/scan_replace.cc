@@ -30,7 +30,7 @@ struct ScanReplacePass : public DifettoPass {
       : DifettoPass("scan_replace", "replaces flip-flops with scannable flip-flops") {}
   
   const std::map<std::string, Arg> args = {
-    {"liberty", Arg{"Liberty files containing replacement scan cells.", "filename", true}},
+    {"liberty", Arg{"Liberty files containing replacement scan cells.", "filename", false, true}},
     {"json_mapping", Arg{"The JSON mapping file.", "filename"}}
   };
   const std::string description = "Replaces standard flip-flops with scannable"
