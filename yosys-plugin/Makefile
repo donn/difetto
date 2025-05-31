@@ -1,7 +1,6 @@
-difetto.so: src/passes/difetto_pass.cc src/passes/scan_replace.cc
+difetto.so: src/passes/difetto_pass.cc src/passes/scan_replace.cc src/passes/boundary_scan.cc
 	yosys-config --build $@ -Iinclude $^
 
 .PHONY: test
 test:
-	cd test && yosys ./module1.ys
-	yosys -p "plugin -i ./difetto.so; help scan_replace"
+	cd test && yosys ./spm.ys

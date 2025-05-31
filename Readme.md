@@ -1,3 +1,5 @@
+## 🚧 Repository is a work in progress. Proceed at your own risk.
+
 <h1 align="center">Difetto</h1>
 <p align="center">
     <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0"/></a>
@@ -8,5 +10,15 @@
     <a href="https://fossi-chat.org"><img src="https://img.shields.io/badge/Community-FOSSi%20Chat-1bb378?logo=element" alt="Invite to FOSSi Chat"/></a>
 </p>
 
-Difetto is a set of utilities based on open-source netlist and layout
-manipulation tools (libyosys and OpenDB) to help achieve DFT tasks.
+Difetto is a design-for-test (DFT) flow based on the development version of
+[LibreLane](https://github.com/librelane/librelane).
+
+It uses a custom Yosys plugin, custom methodology scripts and OpenROAD to all
+for the implementation of test-enabled ASIC circuits.
+
+# License
+
+Preliminarily, the GNU Lesser General Public License v3 or any later version
+(at your option.)
+
+The author reserves the right to modify the license at a later date.
