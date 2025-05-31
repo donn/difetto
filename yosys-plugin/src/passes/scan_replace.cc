@@ -1,29 +1,27 @@
 #include "json11.hpp"
-#include "kernel/yosys.h"
+#include "difetto_pass.h"
 #include "kernel/modtools.h"
-
 #include <fstream>
 
 USING_YOSYS_NAMESPACE
 
-struct ScanReplacePass : public Pass {
-
+struct ScanReplacePass : public DifettoPass {
   ScanReplacePass()
-      : Pass("scan_replace", "replaces flip-flops with scannable flip-flops") {}
-
-  void help() override {
-    //   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
-    log("\n");
-    log("    scan_replace\n");
-    log("\n");
-    log("    \n");
-    log("\n");
-    log("    -liberty filename\n");
-    log("        Currently unsupported - use liberty files\n");
-    log("    -json_mapping filename\n");
-    log("        The mapping JSON file.\n");
-  }
+      : DifettoPass("scan_replace", "replaces flip-flops with scannable flip-flops") {}
   
+  const std::map<std::string, Arg> args = {
+    {"liberty", Arg{"Liberty files containing replacement scan cells.", "filename", true}},
+    {"json_mapping", Arg{"The JSON mapping file.", "filename"}}
+  };
+  const std::string description = "Replaces standard flip-flops with scannable"
+    "flip-flops. The scannable flip-flops can either be obtained from a liberty "
+    "file (unimplemented) or from a JSON mapping file.\n \n" // there's a bug with consecutive \n in TextFlow
+    "Cells marked no_scan, as well as cells driving wires marked no_scan will "
+    "not be affected by scan_replace.\n";
+  
+  virtual const std::map<std::string, Arg>& get_args() override { return args; }
+  virtual std::string_view get_description() override { return description; }
+
   void scan_replace(RTLIL::Module *module, dict<IdString, IdString>& mapping) {
     
     ModWalker mw(module->design, module);
@@ -35,6 +33,7 @@ struct ScanReplacePass : public Pass {
       if (counterpart.empty()) {
         continue;
       }
+      
       // check if cell proper (if declared) has no_scan
       if (cell->get_bool_attribute(no_scan)) {
         log("Skipping %s (cell has no_scan attribute)...\n", pair.first.c_str());
@@ -65,27 +64,10 @@ struct ScanReplacePass : public Pass {
   virtual void execute(std::vector<std::string> args,
                        RTLIL::Design *design) override {
     log_header(design, "Executing SCAN_REPLACE pass.\n");
-    std::string liberty_file;
-    std::string mapping_json;
+    auto parsed_args = parse_args(args, design);
 
-    size_t argidx;
-    for (argidx = 1; argidx < args.size(); argidx++) {
-      std::string arg = args[argidx];
-      if (arg == "-liberty" && argidx + 1 < args.size()) {
-        liberty_file = args[++argidx];
-        rewrite_filename(liberty_file);
-        continue;
-      }
-      if (arg == "-json_mapping" && argidx + 1 < args.size()) {
-        mapping_json = args[++argidx];
-        rewrite_filename(mapping_json);
-        continue;
-      }
-      break;
-    }
-
-    if (mapping_json.empty()) {
-      if (liberty_file.empty()) {
+    if (parsed_args.find("json_mapping") == parsed_args.end()) {
+      if (parsed_args.find("liberty") == parsed_args.end()) {
         log_cmd_error("One of `-json_mapping mapping_json' and `-liberty "
                       "liberty_file' are required!\n");
       } else {
@@ -93,6 +75,8 @@ struct ScanReplacePass : public Pass {
             "`-liberty liberty_file' option is currently unsupported.\n");
       }
     }
+    
+    std::string mapping_json = parsed_args["json_mapping"].at(0);
 
     // std::ifstream f;
     // f.open(liberty_file.c_str());
@@ -102,8 +86,6 @@ struct ScanReplacePass : public Pass {
     //                 strerror(errno));
     // LibertyParser libparser(f);
     // f.close();
-
-    extra_args(args, argidx, design);
 
     std::ifstream f(mapping_json.c_str());
     if (f.fail())
