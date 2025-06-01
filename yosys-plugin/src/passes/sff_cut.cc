@@ -109,6 +109,7 @@ struct SDFFCutPass : public DifettoPass {
         if (obsr_pos != std::string::npos) {
           io_name = bit.wire->name.str();
           io_name->erase(obsr_pos, std::string::npos);
+          bit.wire->set_bool_attribute(ID(keep), false);
           output_bsr = bit;
           break;
         }
