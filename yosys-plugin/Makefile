@@ -6,7 +6,11 @@ difetto.so: src/passes/difetto_pass.o src/passes/scan_replace.o src/passes/bound
 
 %.gen.cc: %.v
 	xxd -i $< > $@
-	
+
+.PHONY: format
+format:
+	clang-format -i --style=file include/*.h src/passes/*.cc
+
 .PHONY: clean
 clean:
 	rm -f src/passes/*.d src/passes/*.o
