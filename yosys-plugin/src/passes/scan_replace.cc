@@ -44,7 +44,7 @@ struct ScanReplacePass : public DifettoPass {
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
 
-  void scan_replace(RTLIL::Module *module, dict<IdString, IdString>& mapping) {
+  void scan_replace(Module *module, dict<IdString, IdString>& mapping) {
     if (module->has_attribute(ID(no_scan))) {
       if (module->get_bool_attribute(ID(no_scan))) {
         return;
@@ -88,12 +88,12 @@ struct ScanReplacePass : public DifettoPass {
   }
 
   virtual void execute(std::vector<std::string> args,
-                       RTLIL::Design *design) override {
+                       Design *design) override {
     log_header(design, "Executing SCAN_REPLACE pass.\n");
     auto parsed_args = parse_args(args, design);
 
-    if (parsed_args.find("json_mapping") == parsed_args.end()) {
-      if (parsed_args.find("liberty") == parsed_args.end()) {
+    if (!parsed_args.count("json_mapping")) {
+      if (!parsed_args.count("liberty")) {
         log_cmd_error("One of `-json_mapping mapping_json' and `-liberty "
                       "liberty_file' are required!\n");
       } else {

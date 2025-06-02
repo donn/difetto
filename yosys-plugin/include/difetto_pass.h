@@ -48,5 +48,5 @@ struct DifettoPass: public Yosys::Pass {
     virtual const std::map<std::string, Arg>& get_args() = 0;
     virtual std::string_view get_description() = 0;
     virtual void help() override;
-    virtual const std::unordered_map<std::string, std::vector<std::string>> parse_args(std::vector<std::string>& args, Yosys::RTLIL::Design *design);
+    virtual const Yosys::dict<std::string, Yosys::vector<std::string>> parse_args(Yosys::vector<std::string>& args, Yosys::RTLIL::Design *design);
 };

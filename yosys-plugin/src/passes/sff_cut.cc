@@ -51,7 +51,7 @@ struct SDFFCutPass : public DifettoPass {
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
 
-  void sdff_cut(RTLIL::Design *design, RTLIL::Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions, pool<IdString>& scan_flops) {
+  void sdff_cut(Design *design, Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions, pool<IdString>& scan_flops) {
     if (module->has_attribute(ID(no_boundary_scan))) {
       if (module->get_bool_attribute(ID(no_boundary_scan))) {
         return;
@@ -61,17 +61,17 @@ struct SDFFCutPass : public DifettoPass {
     
     // Resolve target wires
     IdString test_mode_wire_id;
-    RTLIL::Wire *test_mode_wire = nullptr;
+    Wire *test_mode_wire = nullptr;
     bool test_inverted = false;
     resolve_wire(test_mode_wire_name_raw, module, test_mode_wire_id, test_mode_wire, test_inverted);
 
     IdString clock_wire_id;
-    RTLIL::Wire *clock_wire = nullptr;
+    Wire *clock_wire = nullptr;
     bool clock_negedge = false;
     resolve_wire(clock_wire_name_raw, module, clock_wire_id, clock_wire, clock_negedge);
     
     // Collect and destroy excluded IOs
-    vector<RTLIL::Wire*> inputs, outputs;
+    vector<Wire*> inputs, outputs;
     for (auto [id, wire]: module->wires_) {
       if (wire->port_output) {
         outputs.push_back(wire);
@@ -87,7 +87,7 @@ struct SDFFCutPass : public DifettoPass {
       // de-input and coerce
       input->port_input = false;
       
-      RTLIL::Const coerced_constant(exclusions.at(input->name) ? State::S1 : State::S0, input->width);
+      Const coerced_constant(exclusions.at(input->name) ? State::S1 : State::S0, input->width);
       module->connect(input, coerced_constant);
     }
     
@@ -113,7 +113,7 @@ struct SDFFCutPass : public DifettoPass {
     }
     
     // Cut remaining scanflops
-    vector<RTLIL::Cell *> marked;
+    vector<Cell *> marked;
     for (auto pair: module->cells_) {
       auto [instance_name, instance] = pair;
       if (scan_flops.count(instance->type) == 0) {
@@ -147,7 +147,7 @@ struct SDFFCutPass : public DifettoPass {
       if (input_bsr) {
         // Leftover code from previous approach (manually constructing an IBSR)
         log("identified input bsr %s for %s[%i], replacing muxed value with 0...\n", instance_name.c_str(), io_name->c_str(), input_bsr->offset);
-        RTLIL::Const coerced_constant(State::S0, q_spec.size());
+        Const coerced_constant(State::S0, q_spec.size());
         module->connect(q_spec, coerced_constant);
       } else if (output_bsr) {
         log("identified output bsr %s for %s[%i], not cutting...\n", instance_name.c_str(), io_name->c_str(), output_bsr->offset);
@@ -155,9 +155,9 @@ struct SDFFCutPass : public DifettoPass {
         std::string bsr_name = instance_name.str();
         IdString q(bsr_name + ".q");
         IdString d(bsr_name + ".d");
-        RTLIL::Wire *q_port = module->addWire(q, 1);
+        Wire *q_port = module->addWire(q, 1);
         q_port->port_input = true;
-        RTLIL::Wire *d_port = module->addWire(d, 1);
+        Wire *d_port = module->addWire(d, 1);
         d_port->port_output = true;
         module->connect(d_port, d_spec);
         module->connect(q_spec, q_port);
@@ -172,15 +172,15 @@ struct SDFFCutPass : public DifettoPass {
   }
 
   virtual void execute(std::vector<std::string> args,
-                       RTLIL::Design *design) override {
+                       Design *design) override {
     
     log_header(design, "Executing SDFF_CUT pass.\n");
     log_push();
     
     auto parsed_args = parse_args(args, design);
 
-    if (parsed_args.find("json_mapping") == parsed_args.end()) {
-      if (parsed_args.find("liberty") == parsed_args.end()) {
+    if (!parsed_args.count("json_mapping")) {
+      if (!parsed_args.count("liberty")) {
         log_cmd_error("One of `-json_mapping mapping_json' and `-liberty "
                       "liberty_file' are required!\n");
       } else {

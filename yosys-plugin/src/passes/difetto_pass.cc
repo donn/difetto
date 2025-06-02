@@ -68,7 +68,7 @@ void DifettoPass::help() {
     }
 }
 
-const std::unordered_map<std::string, std::vector<std::string>> DifettoPass::parse_args(std::vector<std::string>& args, RTLIL::Design *design) {
+const dict<std::string, vector<std::string>> DifettoPass::parse_args(vector<std::string>& args, RTLIL::Design *design) {
     size_t argidx;
     auto arg_definitions = get_args();
     pool<std::string> remaining_required_args;
@@ -79,7 +79,7 @@ const std::unordered_map<std::string, std::vector<std::string>> DifettoPass::par
         }
     }
     
-    std::unordered_map<std::string, std::vector<std::string>> result;
+    dict<std::string, vector<std::string>> result;
     
     for (argidx = 1; argidx < args.size(); argidx++) {
       std::string arg = args[argidx];

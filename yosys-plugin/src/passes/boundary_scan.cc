@@ -45,7 +45,7 @@ struct BoundaryScanPass : public DifettoPass {
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
   
-  void boundary_scan(RTLIL::Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions) {
+  void boundary_scan(Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions) {
     if (module->has_attribute(ID(no_boundary_scan))) {
       if (module->get_bool_attribute(ID(no_boundary_scan))) {
         return;
@@ -54,17 +54,17 @@ struct BoundaryScanPass : public DifettoPass {
     
     // Resolve target wires
     IdString test_mode_wire_id;
-    RTLIL::Wire *test_mode_wire = nullptr;
+    Wire *test_mode_wire = nullptr;
     bool test_inverted = false;
     resolve_wire(test_mode_wire_name_raw, module, test_mode_wire_id, test_mode_wire, test_inverted);
 
     IdString clock_wire_id;
-    RTLIL::Wire *clock_wire = nullptr;
+    Wire *clock_wire = nullptr;
     bool clock_negedge = false;
     resolve_wire(clock_wire_name_raw, module, clock_wire_id, clock_wire, clock_negedge);
     
     // Collect IOs
-    vector<RTLIL::Wire*> inputs, outputs;
+    vector<Wire*> inputs, outputs;
     for (auto [id, wire]: module->wires_) {
       if (exclusions.count(id)) {
         continue;
@@ -128,7 +128,7 @@ struct BoundaryScanPass : public DifettoPass {
   }
   
   virtual void execute(std::vector<std::string> args,
-                       RTLIL::Design *design) override {
+                       Design *design) override {
     log_header(design, "Executing BOUNDARY_SCAN pass.\n");
     log_push();
     auto parsed_args = parse_args(args, design);
