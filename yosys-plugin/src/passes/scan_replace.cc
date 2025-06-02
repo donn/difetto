@@ -37,7 +37,9 @@ struct ScanReplacePass : public DifettoPass {
     "flip-flops. The scannable flip-flops can either be obtained from a liberty "
     "file (unimplemented) or from a JSON mapping file.\n \n" // there's a bug with consecutive \n in TextFlow
     "Cells marked no_scan, as well as cells driving wires marked no_scan will "
-    "not be affected by scan_replace.\n";
+    "not be affected by scan_replace.\n \n"
+    "It is intended that you run this pass after the final abc technology "
+    "mapping.";
   
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }

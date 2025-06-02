@@ -37,7 +37,16 @@ struct SDFFCutPass : public DifettoPass {
     // {"macro", Arg{"Macro instances to also add boundary scan around. To ignore certain ports, pass them as \"-exclude_io instance_name/port_name\"", "instance", true}},
     {"exclude_io", Arg{"Top-level pins to ignore. The clock and test_mode wires will always be added to this list. Inputs will be coerced low for the purposes of the cut netlist unless prefixed with !, which will be coerced high.", "io", false, true}},
   };
-  const std::string description = "\n";
+  const std::string description = "From a netlist with scannable flipflops, "
+    "this pass creates a so-called cutaway netlist for automatic test pattern "
+    "generation, i.e., each scannable flip-flop will be replaced by an "
+    "input/output pair.\n \n"
+    "This requires you to have kept the _difetto_ibsr parameterized modules "
+    "from the boundary_scan pass intact and emitted with attributes (so"
+    "the hdlname may be detected.)\n \n"
+    "Intended to be run on the final netlist immediately before PnR. Do note "
+    "that you should not pass this input on to PnR and you should pass the true"
+    "netlist instead.";
   
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }

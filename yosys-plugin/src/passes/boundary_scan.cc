@@ -36,8 +36,11 @@ struct BoundaryScanPass : public DifettoPass {
     // {"macro", Arg{"Macro instances to also add boundary scan around. To ignore certain ports, pass them as \"-exclude_io instance_name/port_name\"", "instance", true}},
     {"exclude_io", Arg{"Top-level pins to ignore. The clock and test_mode wires will always be added to this list.", "io", false, true}},
   };
-  const std::string description = "Creates boundary scan Yosys primitives for "
-    "inputs and outputs. ";
+  
+  const std::string description = "Creates boundary scan unmapped Yosys "
+    "primitives for inputs and outputs for all selected modules. "
+    "Modules with the attribute no_boundary_scan will be skipped.\n \n"
+    "Intended to be run after initial hierarchy and optionally flattening.";
   
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }

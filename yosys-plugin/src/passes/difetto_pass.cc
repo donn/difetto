@@ -40,10 +40,16 @@ void DifettoPass::help() {
     for (auto& [name, arg]: get_args()) {
         std::stringstream syntax;
         if (arg.argument.has_value()) {
+            if (!arg.required) {
+                syntax << "[";
+            } 
             syntax << "-" << name << " " << arg.argument->c_str();
             if (arg.multiple) {
                 syntax << " [-" << name << " " << arg.argument->c_str() << " [-" << name << " " << arg.argument->c_str() << " [...]]]";
             }
+            if (!arg.required) {
+                syntax << "]";
+            } 
         } else {
             syntax << "-" << name;
         }

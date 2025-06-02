@@ -18,6 +18,14 @@ It uses [Quaigh](https://github.com/coloquinte/quaigh), a custom
 and a custom [OpenROAD](https://github.com/The-OpenROAD-Project/OpenROAD)
 OpenDB-based script all for the implementation of test-enabled ASIC circuits.
 
+## Yosys Plugin
+
+See documentation for the Yosys plugin [here](./yosys-plugin/Readme.md).
+
+## LibreLane Plugin
+
+TBD.
+
 # License
 
 Preliminarily, the GNU Lesser General Public License v3 or any later version
