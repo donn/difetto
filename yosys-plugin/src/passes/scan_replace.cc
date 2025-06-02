@@ -29,7 +29,7 @@ struct ScanReplacePass : public DifettoPass {
   ScanReplacePass()
       : DifettoPass("scan_replace", "replaces flip-flops with scannable flip-flops") {}
   
-  const std::map<std::string, Arg> args = {
+  const dict<std::string, Arg> args = {
     {"liberty", Arg{"Liberty files containing replacement scan cells.", "filename", false, true}},
     {"json_mapping", Arg{"The JSON mapping file.", "filename"}}
   };
@@ -41,7 +41,7 @@ struct ScanReplacePass : public DifettoPass {
     "It is intended that you run this pass after the final abc technology "
     "mapping.";
   
-  virtual const std::map<std::string, Arg>& get_args() override { return args; }
+  virtual const dict<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
 
   void scan_replace(Module *module, dict<IdString, IdString>& mapping) {

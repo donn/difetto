@@ -29,7 +29,7 @@ struct SDFFCutPass : public DifettoPass {
   SDFFCutPass()
       : DifettoPass("sdff_cut", "create cutaway netlist for ATPG") {}
   
-  const std::map<std::string, Arg> args = {
+  const dict<std::string, Arg> args = {
     {"liberty", Arg{"Liberty files containing definitions of scan cells.", "filename", false, true}},
     {"json_mapping", Arg{"The JSON mapping file.", "filename"}},
     {"test_mode", Arg{"Name of wire (port or otherwise) to be used as the test mode select.", "wire", true}},
@@ -48,7 +48,7 @@ struct SDFFCutPass : public DifettoPass {
     "that you should not pass this input on to PnR and you should pass the true"
     "netlist instead.";
   
-  virtual const std::map<std::string, Arg>& get_args() override { return args; }
+  virtual const dict<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
 
   void sdff_cut(Design *design, Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions, pool<IdString>& scan_flops) {

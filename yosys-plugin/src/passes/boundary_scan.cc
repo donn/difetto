@@ -30,7 +30,7 @@ struct BoundaryScanPass : public DifettoPass {
   BoundaryScanPass()
       : DifettoPass("boundary_scan", "adds boundary scan to selection") {}
   
-  const std::map<std::string, Arg> args = {
+  const Yosys::dict<std::string, Arg> args = {
     {"test_mode", Arg{"Name of wire (port or otherwise) to be used as the test mode select. Prefix with ! to invert.", "wire", true}},
     {"clock", Arg{"Name of wire (port or otherwise) to be used as the clock for the boundary scan registers. Prefix with ! for negative edge.", "wire", true}},
     // {"macro", Arg{"Macro instances to also add boundary scan around. To ignore certain ports, pass them as \"-exclude_io instance_name/port_name\"", "instance", true}},
@@ -42,7 +42,7 @@ struct BoundaryScanPass : public DifettoPass {
     "Modules with the attribute no_boundary_scan will be skipped.\n \n"
     "Intended to be run after initial hierarchy and optionally flattening.";
   
-  virtual const std::map<std::string, Arg>& get_args() override { return args; }
+  virtual const Yosys::dict<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
   
   void boundary_scan(Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions) {

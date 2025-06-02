@@ -6,6 +6,13 @@ difetto.so: src/passes/difetto_pass.o src/passes/scan_replace.o src/passes/bound
 
 %.gen.cc: %.v
 	xxd -i $< > $@
+	
+.PHONY: clean
+clean:
+	rm -f src/passes/*.d src/passes/*.o
+	rm -f src/*.gen.cc
+	rm -f difetto.d
+	rm -f difetto.so
 
 .PHONY: test
 test: venv/manifest.txt
