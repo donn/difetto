@@ -10,11 +10,13 @@
     <a href="https://fossi-chat.org"><img src="https://img.shields.io/badge/Community-FOSSi%20Chat-1bb378?logo=element" alt="Invite to FOSSi Chat"/></a>
 </p>
 
-Difetto is a design-for-test (DFT) flow based on the development version of
-[LibreLane](https://github.com/librelane/librelane).
+Difetto is a work-in-progress design-for-test (DFT) flow based on the
+development version of [LibreLane](https://github.com/librelane/librelane).
 
-It uses a custom Yosys plugin, custom methodology scripts and OpenROAD to all
-for the implementation of test-enabled ASIC circuits.
+It uses [Quaigh](https://github.com/coloquinte/quaigh), a custom
+[Yosys](https://github.com/yosyshq/yosys) plugin, custom methodology scripts,
+and a custom [OpenROAD](https://github.com/The-OpenROAD-Project/OpenROAD)
+OpenDB-based script all for the implementation of test-enabled ASIC circuits.
 
 # License
 

@@ -21,6 +21,7 @@
 #include "json11.hpp"
 #include "difetto_pass.h"
 #include "kernel/modtools.h"
+#include "bsr_info.h"
 #include <fstream>
 
 USING_YOSYS_NAMESPACE
@@ -42,6 +43,12 @@ struct BoundaryScanPass : public DifettoPass {
   virtual std::string_view get_description() override { return description; }
   
   void boundary_scan(RTLIL::Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions) {
+    if (module->has_attribute(ID(no_boundary_scan))) {
+      if (module->get_bool_attribute(ID(no_boundary_scan))) {
+        return;
+      }
+    }
+    
     // Resolve target wires
     IdString test_mode_wire_id;
     RTLIL::Wire *test_mode_wire = nullptr;
@@ -75,36 +82,21 @@ struct BoundaryScanPass : public DifettoPass {
       module->rename(resolved_input, resolved_id);
       resolved_input->port_input = false;
       
-      // create stored value
-      std::string stored_name = input_id.str() + ".ibsr_out";
-      IdString stored_id(stored_name);
-      auto stored = module->addWire(stored_id, resolved_input);
-      
       // create new input
       auto input = module->addWire(input_id, resolved_input);
       input->port_input = true;
       
-      // multiplex true input with stored value
-      std::string mux_name = input_id.str() + ".ibsr_mux";
-      IdString mux_id(mux_name);
-      auto muxed_spec = module->Mux(
-        mux_id,
-        test_inverted ? SigSpec(stored): SigSpec(input),
-        test_inverted ? SigSpec(input) : SigSpec(stored),
-        test_mode_wire
-      );
-      module->connect(resolved_input, muxed_spec);
-      
-      // create bsr
+      // create new ibsr
       std::string bsr_name = input_id.str() + ".ibsr";
       IdString bsr_id(bsr_name);
-      module->addDff(
-        bsr_id,
-        clock_wire,
-        SigSpec(resolved_input),
-        SigSpec(stored),
-        !clock_negedge
-      );
+      auto bsr = module->addCell(bsr_name, ID(_difetto_ibsr));
+      bsr->setParam(ID(WIDTH), resolved_input->width);
+      bsr->setParam(ID(CLK_POLARITY), clock_negedge ? Const(State::S0, 1) : Const(State::S1, 1));
+      bsr->setParam(ID(TEST_POLARITY), test_inverted ? Const(State::S0, 1) : Const(State::S1, 1));
+      bsr->setPort(ID(D), input);
+      bsr->setPort(ID(Q), resolved_input);
+      bsr->setPort(ID(CLK), clock_wire);
+      bsr->setPort(ID(TEST), test_mode_wire);
     }
     
     for (auto output: outputs) {
@@ -135,6 +127,7 @@ struct BoundaryScanPass : public DifettoPass {
   virtual void execute(std::vector<std::string> args,
                        RTLIL::Design *design) override {
     log_header(design, "Executing BOUNDARY_SCAN pass.\n");
+    log_push();
     auto parsed_args = parse_args(args, design);
     
     std::string test_mode_wire_name = parsed_args["test_mode"].at(0);
@@ -147,9 +140,18 @@ struct BoundaryScanPass : public DifettoPass {
       raw_exclusions.insert(el);
     }
     auto exclusions = process_exclusions(raw_exclusions);
+     
+    auto bsr_idstring = ID(_difetto_bsr);
+    if (design->modules_.count(bsr_idstring) == 0) {
+      load_ibsr_definitions(design);
+    }
     
     for (auto module : design->selected_modules()) {
       boundary_scan(module, test_mode_wire_name, clock_wire_name, exclusions);
     }
+    
+    Pass::call(design, "hierarchy");
+    
+    log_pop();
   }
 } BoundaryScanPass;

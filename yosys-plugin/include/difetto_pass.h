@@ -21,6 +21,7 @@
 
 #include "kernel/yosys.h"
 #include <optional>
+#include <filesystem>
 
 struct DifettoPass: public Yosys::Pass {
     struct Arg {
@@ -42,7 +43,8 @@ struct DifettoPass: public Yosys::Pass {
     Yosys::dict<Yosys::RTLIL::IdString, bool> process_exclusions(
         const Yosys::pool<std::string>& raw_exclusions
     );
-    
+    void load_ibsr_definitions(Yosys::RTLIL::Design *design);
+
     virtual const std::map<std::string, Arg>& get_args() = 0;
     virtual std::string_view get_description() = 0;
     virtual void help() override;

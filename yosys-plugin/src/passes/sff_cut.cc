@@ -42,7 +42,12 @@ struct SDFFCutPass : public DifettoPass {
   virtual const std::map<std::string, Arg>& get_args() override { return args; }
   virtual std::string_view get_description() override { return description; }
 
-  void sdff_cut(RTLIL::Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions, pool<IdString>& scan_flops) {
+  void sdff_cut(RTLIL::Design *design, RTLIL::Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw, const dict<IdString, bool>& exclusions, pool<IdString>& scan_flops) {
+    if (module->has_attribute(ID(no_boundary_scan))) {
+      if (module->get_bool_attribute(ID(no_boundary_scan))) {
+        return;
+      }
+    }
     ModWalker mw(module->design, module);
     
     // Resolve target wires
@@ -56,7 +61,7 @@ struct SDFFCutPass : public DifettoPass {
     bool clock_negedge = false;
     resolve_wire(clock_wire_name_raw, module, clock_wire_id, clock_wire, clock_negedge);
     
-    // Collect and destroy IOs
+    // Collect and destroy excluded IOs
     vector<RTLIL::Wire*> inputs, outputs;
     for (auto [id, wire]: module->wires_) {
       if (wire->port_output) {
@@ -85,6 +90,20 @@ struct SDFFCutPass : public DifettoPass {
     }
     module->fixup_ports();
 
+    // Inputs: Handle difetto IBSRs
+    for (auto [id, cell]: module->cells_) {
+      if (!design->modules_.count(cell->type)) {
+        continue;
+      }
+      auto target_module = design->modules_[cell->type];
+      if ((target_module->has_attribute(ID(hdlname)) && target_module->get_string_attribute(ID(hdlname)) == "_difetto_ibsr") || target_module->name == ID(_difetto_ibsr)) {
+        log("identified difetto input bsr %s, shorting D to Q...\n", cell->name.c_str());
+        cell->setParam(ID(WIDTH), cell->getPort(ID(D)).bits().size());
+        cell->type = ID(_difetto_ibsr_dummy);
+      }
+    }
+    
+    // Cut remaining scanflops
     vector<RTLIL::Cell *> marked;
     for (auto pair: module->cells_) {
       auto [instance_name, instance] = pair;
@@ -117,6 +136,7 @@ struct SDFFCutPass : public DifettoPass {
       auto d_spec = instance->getPort(IdString("\\D"));
       auto q_spec = instance->getPort(IdString("\\Q"));
       if (input_bsr) {
+        // Leftover code from previous approach (manually constructing an IBSR)
         log("identified input bsr %s for %s[%i], replacing muxed value with 0...\n", instance_name.c_str(), io_name->c_str(), input_bsr->offset);
         RTLIL::Const coerced_constant(State::S0, q_spec.size());
         module->connect(q_spec, coerced_constant);
@@ -144,7 +164,10 @@ struct SDFFCutPass : public DifettoPass {
 
   virtual void execute(std::vector<std::string> args,
                        RTLIL::Design *design) override {
+    
     log_header(design, "Executing SDFF_CUT pass.\n");
+    log_push();
+    
     auto parsed_args = parse_args(args, design);
 
     if (parsed_args.find("json_mapping") == parsed_args.end()) {
@@ -195,8 +218,17 @@ struct SDFFCutPass : public DifettoPass {
     }
     auto exclusions = process_exclusions(raw_exclusions);
     
-    for (auto module : design->selected_modules()) {
-      sdff_cut(module, test_mode_wire_name, clock_wire_name, exclusions, scanflops);
+    auto bsr_idstring = ID(_difetto_bsr);
+    if (design->modules_.count(bsr_idstring) == 0) {
+      load_ibsr_definitions(design);
     }
+    
+    for (auto module : design->selected_modules()) {
+      sdff_cut(design, module, test_mode_wire_name, clock_wire_name, exclusions, scanflops);
+    }
+    
+    Pass::call(design, "hierarchy");
+    Pass::call(design, "flatten");
+    log_pop();
   }
 } SDFFCutPass;

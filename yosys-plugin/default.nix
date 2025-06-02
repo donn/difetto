@@ -20,7 +20,8 @@
   yosys,
   clang-tools_16,
   python3,
-  quaigh
+  quaigh,
+  unixtools
 }:
 yosys.stdenv.mkDerivation (finalAttrs: {
   pname = "yosys-difetto";
@@ -36,7 +37,7 @@ yosys.stdenv.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [
     clang-tools_16
-    
+    unixtools.xxd
     # nativeCheckInputs is a broken mess and I don't want to deal with it rn
     python3.pkgs.nl2bench
     quaigh

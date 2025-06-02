@@ -19,6 +19,7 @@
 */
 
 #include "difetto_pass.h"
+#include "bsr_info.h"
 #include "TextFlow.hpp"
 
 USING_YOSYS_NAMESPACE
@@ -145,4 +146,23 @@ dict<IdString, bool> DifettoPass::process_exclusions(const pool<std::string>& ra
         result[id] = inverted;
     }
     return result;
+}
+
+void DifettoPass::load_ibsr_definitions(Yosys::RTLIL::Design *design) {
+    using namespace std::filesystem;
+    path temp_dir = temp_directory_path();
+    path difetto_temp = temp_dir / "difetto";
+    if (!exists(difetto_temp) && !create_directories(difetto_temp)) {
+    log_error("Could not create temporary directory: %s", difetto_temp.c_str());
+    }
+    path bsr_temp = difetto_temp / "bsr.v";
+    std::ofstream outpath(bsr_temp);
+    if (outpath.fail()) {
+    log_error("Could not open temporary file for writing: %s", bsr_temp.c_str());
+    }
+    std::string_view bsr_v_view((const char*)src_bsr_v, src_bsr_v_len);
+    outpath << bsr_v_view;
+    outpath.close();
+    Pass::call(design, {"read_verilog", "-icells", bsr_temp});
+    remove(bsr_temp);
 }

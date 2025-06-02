@@ -1,8 +1,11 @@
-difetto.so: src/passes/difetto_pass.o src/passes/scan_replace.o src/passes/boundary_scan.o src/passes/sff_cut.o
+difetto.so: src/passes/difetto_pass.o src/passes/scan_replace.o src/passes/boundary_scan.o src/passes/sff_cut.o src/bsr.gen.cc
 	yosys-config --build $@ $^
 
 %.o: %.cc
 	$(shell yosys-config --cxx) $(shell yosys-config --cxxflags) -Iinclude -c -o $@ $<
+
+%.gen.cc: %.v
+	xxd -i $< > $@
 
 .PHONY: test
 test: venv/manifest.txt

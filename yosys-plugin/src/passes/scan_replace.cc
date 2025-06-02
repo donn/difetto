@@ -43,10 +43,14 @@ struct ScanReplacePass : public DifettoPass {
   virtual std::string_view get_description() override { return description; }
 
   void scan_replace(RTLIL::Module *module, dict<IdString, IdString>& mapping) {
+    if (module->has_attribute(ID(no_scan))) {
+      if (module->get_bool_attribute(ID(no_scan))) {
+        return;
+      }
+    }
     
     ModWalker mw(module->design, module);
     
-    const IdString no_scan("\\no_scan");
     for (auto pair: module->cells_) {
       auto cell = pair.second;
       auto counterpart = mapping[cell->type];
@@ -55,7 +59,7 @@ struct ScanReplacePass : public DifettoPass {
       }
       
       // check if cell proper (if declared) has no_scan
-      if (cell->get_bool_attribute(no_scan)) {
+      if (cell->get_bool_attribute(ID(no_scan))) {
         log("Skipping %s (cell has no_scan attribute)...\n", pair.first.c_str());
         continue;
       }
@@ -65,7 +69,7 @@ struct ScanReplacePass : public DifettoPass {
       bool no_scan_found = false;
       for (auto bit: output_bits) {
         auto wire = bit.wire;
-        if (wire->get_bool_attribute(no_scan)) {
+        if (wire->get_bool_attribute(ID(no_scan))) {
           no_scan_found = true;
           break;
         }
