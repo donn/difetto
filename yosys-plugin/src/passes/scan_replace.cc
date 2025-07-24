@@ -33,11 +33,8 @@ struct ScanReplacePass : public DifettoPass {
 	const std::string description = "Replaces standard flip-flops with scannable"
 					"flip-flops. The scannable flip-flops can either be obtained from a "
 					"liberty "
-					"file (unimplemented) or from a JSON mapping file.\n \n" // there's a
-												 // bug with
-												 // consecutive
-												 // \n in
-												 // TextFlow
+					// There's a bug with consecutive \ns in TextFlow
+					"file (unimplemented) or from a JSON mapping file.\n \n"
 					"Cells marked no_scan, as well as cells driving wires marked no_scan "
 					"will "
 					"not be affected by scan_replace.\n \n"

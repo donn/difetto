@@ -21,14 +21,15 @@
   clang-tools_16,
   python3,
   quaigh,
-  unixtools
+  unixtools,
+  src ? ./.,
 }:
 yosys.stdenv.mkDerivation (finalAttrs: {
   pname = "yosys-difetto";
   version = "0.1.0";
   dylibs = ["difetto"];
 
-  src = ./.;
+  inherit src;
 
   buildInputs = [
     yosys
@@ -43,6 +44,13 @@ yosys.stdenv.mkDerivation (finalAttrs: {
     quaigh
   ];
   
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out/share/yosys/plugins
+    cp difetto.so $out/share/yosys/plugins
+    runHook postInstall
+  '';
+
   meta = {
     description = "";
     license = lib.licenses.mit;

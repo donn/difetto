@@ -5,10 +5,7 @@ import shlex
 import shutil
 import sys
 
-top = {
-    "configurations": [],
-    "version": 4
-}
+top = {"configurations": [], "version": 4}
 if sys.platform == "darwin":
     clang = shutil.which("clang")
     ys = Path(shutil.which("yosys"))
@@ -16,14 +13,11 @@ if sys.platform == "darwin":
     top["configurations"].append(
         {
             "name": "Nix Config (macOS)",
-            "macFrameworkPath": [
-                "/System/Library/Frameworks",
-                "/Library/Frameworks"
-            ],
+            "macFrameworkPath": ["/System/Library/Frameworks", "/Library/Frameworks"],
             "intelliSenseMode": "macos-clang-x64",
             "compilerPath": clang,
             "includePath": ["${workspaceFolder}/yosys-plugin/include", yosys_include],
-            "compilerArgs": shlex.split(os.environ["NIX_CFLAGS_COMPILE"])
+            "compilerArgs": shlex.split(os.environ["NIX_CFLAGS_COMPILE"]),
         }
     )
 else:
