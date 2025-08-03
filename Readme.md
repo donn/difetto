@@ -28,7 +28,4 @@ TBD.
 
 # License
 
-Preliminarily, the GNU Lesser General Public License v3 or any later version
-(at your option.)
-
-The author reserves the right to modify the license at a later date.
+The Apache License, version 2.0. See 'License'.
