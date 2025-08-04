@@ -37,9 +37,18 @@ pdk::gf180mcu*:
 
 # DFT
 DFT_TEST_MODE_WIRE: tm
-DFT_TEST_CLOCK_WIRE: tck
-DFT_BSCAN_EXCLUDE_IO: [rst]
+DFT_TEST_CLOCK_WIRE: clk
+DFT_SCAN_IN_PATTERN: sci
+DFT_SCAN_OUT_PATTERN: sco
+DFT_SCAN_ENABLE_PATTERN: sce
 DFT_JSON_MAPPING: dir::sky130_mapping.json
+DFT_BSCAN_EXCLUDE_IO:
+  - clk
+  - tm
+  - rst
+  - sce
+  - sci
+  - sco
 
 meta:
   flow: Classic
@@ -49,3 +58,4 @@ meta:
     - [+Difetto.BoundaryScan, Difetto.Resynthesis]
     - [+Difetto.Resynthesis, Difetto.ScanReplace]
     - [+Difetto.ScanReplace, Difetto.Cut]
+    - [-OpenROAD.GlobalRouting, Difetto.Chain]

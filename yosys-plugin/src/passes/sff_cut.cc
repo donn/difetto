@@ -40,8 +40,7 @@ struct SDFFCutPass : public DifettoPass {
 	  // {"macro", Arg{"Macro instances to also add boundary scan around. To
 	  // ignore certain ports, pass them as \"-exclude_io
 	  // instance_name/port_name\"", "instance", true}},
-	  {"exclude_io", Arg{"Top-level pins to ignore. The clock and test_mode wires will "
-			     "always be added to this list. Inputs will be coerced low "
+	  {"exclude_io", Arg{"Top-level pins to ignore. Inputs will be coerced low "
 			     "for the purposes of the cut netlist unless prefixed with !, "
 			     "which will be coerced high.",
 			     "io", false, true}},
@@ -241,7 +240,7 @@ struct SDFFCutPass : public DifettoPass {
 
 		std::string test_mode_wire_name = parsed_args["test_mode"].at(0);
 		std::string clock_wire_name = parsed_args["clock"].at(0);
-		pool<std::string> raw_exclusions = {test_mode_wire_name, clock_wire_name};
+		pool<std::string> raw_exclusions{};
 		for (auto &el : parsed_args["exclude_io"]) {
 			raw_exclusions.insert(el);
 		}

@@ -39,9 +39,7 @@ struct BoundaryScanPass : public DifettoPass {
 	  // {"macro", Arg{"Macro instances to also add boundary scan around. To
 	  // ignore certain ports, pass them as \"-exclude_io
 	  // instance_name/port_name\"", "instance", true}},
-	  {"exclude_io", Arg{"Top-level pins to ignore. The clock and test_mode wires will "
-			     "always be added to this list.",
-			     "io", false, true}},
+	  {"exclude_io", Arg{"Top-level pins to ignore.", "io", false, true}},
 	};
 
 	const std::string description = "Creates boundary scan unmapped Yosys "
@@ -138,7 +136,7 @@ struct BoundaryScanPass : public DifettoPass {
 
 		std::string test_mode_wire_name = parsed_args["test_mode"].at(0);
 		std::string clock_wire_name = parsed_args["clock"].at(0);
-		pool<std::string> raw_exclusions = {test_mode_wire_name, clock_wire_name};
+		pool<std::string> raw_exclusions{};
 		for (auto &el : parsed_args["exclude_io"]) {
 			raw_exclusions.insert(el);
 		}

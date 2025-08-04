@@ -22,7 +22,9 @@ module spm #(parameter bits=32) (
     input x,
     input[bits-1: 0] a,
     input tm,
-    input tck,
+    input sce,
+    input sci,
+    output sco,
     output y
 );
     wire[bits: 0] y_chain;

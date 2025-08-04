@@ -24,6 +24,11 @@
         (pkgs': pkgs: let
           callPackage = lib.callPackageWith pkgs';
         in {
+          openroad = pkgs.openroad.overrideAttrs(attrs': attrs: {
+            patches = attrs.patches ++ [
+              ./nix/openroad/dft_npe.patch
+            ];
+          });
           yosys-difetto = callPackage ./yosys-plugin/default.nix {
             src = "${self}/yosys-plugin";
           };

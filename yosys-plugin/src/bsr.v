@@ -17,8 +17,13 @@ module _difetto_ibsr(CLK, TEST, D, Q);
         .D(Q),
         .Q(store)
     );
-    
-    assign Q = (TEST == TEST_POLARITY) ? store : D;
+
+    \$mux #(.WIDTH(WIDTH)) _mux_ (
+        .S(TEST == TEST_POLARITY),
+        .A(D),
+        .B(store),
+        .Y(Q)
+    );
 endmodule
 
 (* no_boundary_scan *)

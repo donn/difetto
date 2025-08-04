@@ -1,6 +1,7 @@
 import os
 from librelane.steps import Step, StepException
 from librelane.steps.pyosys import PyosysStep
+from librelane.steps.openroad import OpenROADStep
 from librelane.state import DesignFormat
 from librelane.config import Variable
 from librelane.common import Path
@@ -45,7 +46,20 @@ class Resynthesis(Step.factory.get("Yosys.Resynthesis")):
         return super().run(*args, **kwargs)
 
 
-dft_exclude_vars = [
+dft_common_vars = [
+    Variable(
+        "DFT_TOP_MODULE",
+        Optional[str],
+        "An optional override for the top module for DFT, in case you would prefer only a submodule to have boundary scan and scannable flip-flops.",
+    ),
+    Variable(
+        "DFT_JSON_MAPPING",
+        Path,
+        "A JSON file with the mapping from non-scannable flip-flops to scannable flip-flops.",
+    ),
+]
+
+dft_pin_vars = [
     Variable(
         "DFT_TEST_MODE_WIRE",
         str,
@@ -57,9 +71,19 @@ dft_exclude_vars = [
         "Name of the wire to use as a clock signal. Prefix with ! to invert.",
     ),
     Variable(
-        "DFT_BSCAN_EXCLUDE_IO",
-        Optional[List[str]],
-        "Names of top-level pins to exclude boundary scan registers for. The contents of 'DFT_TEST_MODE_WIRE' and 'DFT_CLOCK_WIRE' will automatically be added to this list.",
+        "DFT_SCAN_ENABLE_PATTERN",
+        str,
+        "Formatting pattern for scan-enable signals to be found/created. Can either be the name of a top-level pin for the ENTIRE DESIGN (not necessarily the DFT top module) or an instance pin in the format instance/pin. You may include up to one set of braces {} which will be replaced with 0.",
+    ),
+    Variable(
+        "DFT_SCAN_IN_PATTERN",
+        str,
+        "Formatting pattern for scan-in signals to be found/created. Can either be the name of a top-level pin for the ENTIRE DESIGN (not necessarily the DFT top module) or an instance pin in the format instance/pin. You may include up to one set of braces {} which will be replaced with the chain number. Currently, only one chain is supported, so there's no good reason to do that.",
+    ),
+    Variable(
+        "DFT_SCAN_OUT_PATTERN",
+        str,
+        "Formatting pattern for scan-out signals to be found/created. Can either be the name of a top-level pin for the ENTIRE DESIGN (not necessarily the DFT top module) or an instance pin in the format instance/pin. You may include up to one set of braces {} which will be replaced with the chain number. Currently, only one chain is supported, so there's no good reason to do that.",
     ),
 ]
 
@@ -68,18 +92,7 @@ class DFTCommon(PyosysStep):
     inputs = [DesignFormat.nl]
     outputs = [DesignFormat.nl]
 
-    config_vars = PyosysStep.config_vars + [
-        Variable(
-            "DFT_TOP_MODULE",
-            Optional[str],
-            "An optional override for the top module for DFT, in case you would prefer only a submodule to have boundary scan and scannable flip-flops.",
-        ),
-        Variable(
-            "DFT_JSON_MAPPING",
-            Path,
-            "A JSON file with the mapping from non-scannable flip-flops to scannable flip-flops.",
-        ),
-    ]
+    config_vars = PyosysStep.config_vars + dft_common_vars
 
     def get_command(self, state_in) -> List[str]:
         out_file = os.path.join(
@@ -105,7 +118,13 @@ class DFTCommon(PyosysStep):
 class BoundaryScan(DFTCommon):
     id = "Difetto.BoundaryScan"
 
-    config_vars = DFTCommon.config_vars + dft_exclude_vars
+    config_vars = DFTCommon.config_vars + dft_pin_vars + [
+        Variable(
+            "DFT_BSCAN_EXCLUDE_IO",
+            Optional[List[str]],
+            "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
+        ),
+    ]
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "boundary_scan.py")
@@ -129,7 +148,13 @@ class Cut(PyosysStep):
     inputs = [DesignFormat.nl]
     outputs = [DesignFormat.cut_nl]
 
-    config_vars = DFTCommon.config_vars + dft_exclude_vars
+    config_vars = DFTCommon.config_vars + dft_pin_vars + [
+        Variable(
+            "DFT_BSCAN_EXCLUDE_IO",
+            Optional[List[str]],
+            "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
+        ),
+    ]
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "cut.py")
@@ -152,3 +177,21 @@ class Cut(PyosysStep):
             )
         )
         return state_out, metrics
+
+DesignFormat("chains_yml", "chains.yml", "Netlist with Cutaway Scannable Elements").register()
+
+@Step.factory.register()
+class Chain(OpenROADStep):
+    id = "Difetto.Chain"
+    
+    outputs = OpenROADStep.outputs + [ DesignFormat.chains_yml ]
+    
+    config_vars = OpenROADStep.config_vars + dft_common_vars + dft_pin_vars
+
+    def get_script_path(self):
+        return os.path.join(__file_dir__, "scripts", "openroad", "chain.tcl")
+    
+    def run(self, state_in, **kwargs):
+        views, metrics = super().run(state_in, **kwargs)
+        views[DesignFormat.chains_yml] = Path(os.path.join(self.step_dir, f"{self.config['DESIGN_NAME']}.{DesignFormat.chains_yml.extension}"))
+        return views, metrics

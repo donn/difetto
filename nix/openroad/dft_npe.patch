@@ -1,0 +1,27 @@
+From cde71ab4769cb62077173ef1b4b325adb18f125f Mon Sep 17 00:00:00 2001
+From: Mohamed Gaber <me@donn.website>
+Date: Mon, 4 Aug 2025 13:03:19 +0300
+Subject: [PATCH] dft: fix null pointer access
+
+Regression introduced in
+c950307c1eeffebde769060e68e54340bca3b96e -- physical-only cells without lib views would cause a null pointer access.
+
+Signed-off-by: Mohamed Gaber <me@donn.website>
+---
+ src/dft/src/cells/ScanCellFactory.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/dft/src/cells/ScanCellFactory.cpp b/src/dft/src/cells/ScanCellFactory.cpp
+index cfcb6ca4fb9..45ca43c6201 100644
+--- a/src/dft/src/cells/ScanCellFactory.cpp
++++ b/src/dft/src/cells/ScanCellFactory.cpp
+@@ -60,7 +60,8 @@ TypeOfCell IdentifyCell(odb::dbInst* inst, sta::dbSta* sta)
+   sta::dbNetwork* db_network = sta->getDbNetwork();
+   sta::LibertyCell* liberty_cell
+       = GetLibertyCell(inst->getMaster(), db_network);
+-  if (liberty_cell->hasSequentials() && !inst->getMaster()->isBlock()) {
++  if (liberty_cell != nullptr && liberty_cell->hasSequentials()
++      && !inst->getMaster()->isBlock()) {
+     // we assume that we are only dealing with one bit cells, but in the future
+     // we could deal with multibit cells too
+     return TypeOfCell::kOneBitCell;
