@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Mohamed Gaber
 import json
 import click
 
@@ -31,7 +33,8 @@ def cut(output, config_in, input):
         "-clock",
         config["DFT_TEST_CLOCK_WIRE"],
     )
-
+    d.run_pass("hierarchy")
+    d.run_pass("flatten")
     d.run_pass("write_verilog", output)
 
 

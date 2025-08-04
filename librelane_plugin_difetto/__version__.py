@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Mohamed Gaber
+#
 # Adapted from OpenLane 2
 #
 # Copyright 2023 Efabless Corporation

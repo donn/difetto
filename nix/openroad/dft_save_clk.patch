@@ -1,0 +1,41 @@
+From 9ab71060c7e9cc41e74f46333956a0279d178b04 Mon Sep 17 00:00:00 2001
+From: Mohamed Gaber <me@donn.website>
+Date: Mon, 4 Aug 2025 14:31:09 +0300
+Subject: [PATCH] dft: save clock domain info in the database
+
+- `dft::Dft::executeDftPlan()`: amend data saved to database to include basic clock domain information - the clock name and the edge, specifically
+
+Signed-off-by: Mohamed Gaber <me@donn.website>
+---
+ src/dft/src/Dft.cpp | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/src/dft/src/Dft.cpp b/src/dft/src/Dft.cpp
+index 6bc0f61afe6..36a536e7062 100644
+--- a/src/dft/src/Dft.cpp
++++ b/src/dft/src/Dft.cpp
+@@ -118,6 +118,24 @@ void Dft::executeDftPlan()
+       auto scan_out_term = scan_cell->getScanOut().getValue();
+       db_scaninst->setAccessPins(
+           {.scan_in = scan_in_term, .scan_out = scan_out_term});
++
++      const ClockDomain& clock_domain = scan_cell->getClockDomain();
++      db_scaninst->setScanClock(clock_domain.getClockName());
++      odb::dbScanInst::ClockEdge edge;
++      switch (clock_domain.getClockEdge()) {
++        case ClockEdge::Rising:
++          edge = odb::dbScanInst::ClockEdge::Rising;
++          break;
++        case ClockEdge::Falling:
++          edge = odb::dbScanInst::ClockEdge::Falling;
++          break;
++        default:
++          // TODO: std::unreachable() once we reach c++23
++          // For now, intentionally leave the behavior undefined
++          break;
++      }
++
++      db_scaninst->setClockEdge(edge);
+     }
+ 
+     std::optional<ScanDriver> sc_enable_driver = chain->getScanEnable();

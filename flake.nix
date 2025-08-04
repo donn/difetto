@@ -27,23 +27,13 @@
           openroad = pkgs.openroad.overrideAttrs(attrs': attrs: {
             patches = attrs.patches ++ [
               ./nix/openroad/dft_npe.patch
+              ./nix/openroad/dft_save_clk.patch
             ];
           });
           yosys-difetto = callPackage ./yosys-plugin/default.nix {
             src = "${self}/yosys-plugin";
           };
         })
-        (
-          nix-eda.composePythonOverlay (pkgs': pkgs: pypkgs': pypkgs: let
-            callPythonPackage = lib.callPackageWith (pkgs' // pypkgs');
-          in {
-            librelane = pypkgs.librelane.override {
-              extra-yosys-plugins = [
-                pkgs'.yosys-difetto
-              ];
-            };
-          })
-        )
       ];
     };
 

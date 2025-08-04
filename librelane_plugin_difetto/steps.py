@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Mohamed Gaber
 import os
 from librelane.steps import Step, StepException
 from librelane.steps.pyosys import PyosysStep
@@ -5,7 +7,6 @@ from librelane.steps.openroad import OpenROADStep
 from librelane.state import DesignFormat
 from librelane.config import Variable
 from librelane.common import Path
-from librelane.common.misc import get_script_dir as get_lln_script_dir
 
 from typing import List, Optional
 
@@ -117,14 +118,19 @@ class DFTCommon(PyosysStep):
 @Step.factory.register()
 class BoundaryScan(DFTCommon):
     id = "Difetto.BoundaryScan"
+    name = "Create Boundary Scan Flipflops"
 
-    config_vars = DFTCommon.config_vars + dft_pin_vars + [
-        Variable(
-            "DFT_BSCAN_EXCLUDE_IO",
-            Optional[List[str]],
-            "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
-        ),
-    ]
+    config_vars = (
+        DFTCommon.config_vars
+        + dft_pin_vars
+        + [
+            Variable(
+                "DFT_BSCAN_EXCLUDE_IO",
+                Optional[List[str]],
+                "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
+            ),
+        ]
+    )
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "boundary_scan.py")
@@ -133,28 +139,38 @@ class BoundaryScan(DFTCommon):
 @Step.factory.register()
 class ScanReplace(DFTCommon):
     id = "Difetto.ScanReplace"
+    name = "Replace Flipflops with Scannable Flipflops"
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "scan_replace.py")
 
 
-DesignFormat("cut_nl", "cut_nl.v", "Netlist with Cutaway Scannable Elements").register()
+DesignFormat(
+    "cut_nl",
+    "cut_nl.v",
+    "Netlist with Cutaway Scannable Elements",
+).register()
 
 
 @Step.factory.register()
 class Cut(PyosysStep):
     id = "Difetto.Cut"
+    name = "Create Cutaway Netlist"
 
     inputs = [DesignFormat.nl]
     outputs = [DesignFormat.cut_nl]
 
-    config_vars = DFTCommon.config_vars + dft_pin_vars + [
-        Variable(
-            "DFT_BSCAN_EXCLUDE_IO",
-            Optional[List[str]],
-            "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
-        ),
-    ]
+    config_vars = (
+        DFTCommon.config_vars
+        + dft_pin_vars
+        + [
+            Variable(
+                "DFT_BSCAN_EXCLUDE_IO",
+                Optional[List[str]],
+                "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
+            ),
+        ]
+    )
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "cut.py")
@@ -178,20 +194,32 @@ class Cut(PyosysStep):
         )
         return state_out, metrics
 
-DesignFormat("chains_yml", "chains.yml", "Netlist with Cutaway Scannable Elements").register()
+
+DesignFormat(
+    "chains_yml",
+    "chains.yml",
+    "Scan Chains (YAML format)",
+).register()
+
 
 @Step.factory.register()
 class Chain(OpenROADStep):
     id = "Difetto.Chain"
-    
-    outputs = OpenROADStep.outputs + [ DesignFormat.chains_yml ]
-    
+    name = "Create Scan Chains"
+
+    outputs = OpenROADStep.outputs + [DesignFormat.chains_yml]
+
     config_vars = OpenROADStep.config_vars + dft_common_vars + dft_pin_vars
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "openroad", "chain.tcl")
-    
+
     def run(self, state_in, **kwargs):
         views, metrics = super().run(state_in, **kwargs)
-        views[DesignFormat.chains_yml] = Path(os.path.join(self.step_dir, f"{self.config['DESIGN_NAME']}.{DesignFormat.chains_yml.extension}"))
+        views[DesignFormat.chains_yml] = Path(
+            os.path.join(
+                self.step_dir,
+                f"{self.config['DESIGN_NAME']}.{DesignFormat.chains_yml.extension}",
+            )
+        )
         return views, metrics
