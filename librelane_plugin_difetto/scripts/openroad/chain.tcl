@@ -25,7 +25,7 @@ if {[expr [llength [info procs execute_dft_plan]] > 0]} {
 
 puts "\[INFO\] Writing chains in a YAML format…"
 
-set yaml_out [open "$::env(STEP_DIR)/$::env(DESIGN_NAME).chains.yml" "w"]
+set yaml_out [open "$::env(STEP_DIR)/$::env(DESIGN_NAME).chain.yml" "w"]
 set ::dft [$::block getDft]
 set chains [$::dft getScanChains]
 foreach chain $chains {
@@ -34,7 +34,7 @@ puts $yaml_out "  partitions:"
     set partitions [$chain getScanPartitions]
     foreach partition $partitions {
 puts $yaml_out "  - name: '[$partition getName]'"
-puts $yaml_out "    lists:"
+puts $yaml_out "    scan_lists:"
         set lists [$partition getScanLists]
         foreach list $lists {
 puts $yaml_out "    - insts:"

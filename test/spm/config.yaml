@@ -8,6 +8,7 @@ SIGNOFF_SDC_FILE: dir::src/signoff.sdc
 
 # Synthesis
 SYNTH_WRITE_NOATTR: false
+ERROR_ON_SYNTH_CHECKS: false
 
 # PDN
 PDN_VOFFSET: 5
@@ -51,11 +52,4 @@ DFT_BSCAN_EXCLUDE_IO:
   - sco
 
 meta:
-  flow: Classic
-  substituting_steps:
-    - [Yosys.Synthesis, Difetto.Synthesis]
-    - [+Difetto.Synthesis, Difetto.BoundaryScan]
-    - [+Difetto.BoundaryScan, Difetto.Resynthesis]
-    - [+Difetto.Resynthesis, Difetto.ScanReplace]
-    - [+Difetto.ScanReplace, Difetto.Cut]
-    - [-OpenROAD.GlobalRouting, Difetto.Chain]
+  flow: DifettoPNR

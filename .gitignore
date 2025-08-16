@@ -4,3 +4,4 @@ __pycache__
 *.pyc
 requirements.txt
 runs/
+/sim_build

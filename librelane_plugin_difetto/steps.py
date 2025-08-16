@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Mohamed Gaber
 import os
+import subprocess
+from abc import abstractmethod
 from librelane.steps import Step, StepException
 from librelane.steps.pyosys import PyosysStep
 from librelane.steps.openroad import OpenROADStep
 from librelane.state import DesignFormat
 from librelane.config import Variable
 from librelane.common import Path
+from librelane.logging import warn
 
-from typing import List, Optional
+from typing import ClassVar, List, Literal, Optional
 
 __file_dir__ = os.path.dirname(os.path.abspath(__file__))
 
@@ -86,6 +89,11 @@ dft_pin_vars = [
         str,
         "Formatting pattern for scan-out signals to be found/created. Can either be the name of a top-level pin for the ENTIRE DESIGN (not necessarily the DFT top module) or an instance pin in the format instance/pin. You may include up to one set of braces {} which will be replaced with the chain number. Currently, only one chain is supported, so there's no good reason to do that.",
     ),
+    Variable(
+        "DFT_BSCAN_EXCLUDE_IO",
+        Optional[List[str]],
+        "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
+    ),
 ]
 
 
@@ -120,17 +128,7 @@ class BoundaryScan(DFTCommon):
     id = "Difetto.BoundaryScan"
     name = "Create Boundary Scan Flipflops"
 
-    config_vars = (
-        DFTCommon.config_vars
-        + dft_pin_vars
-        + [
-            Variable(
-                "DFT_BSCAN_EXCLUDE_IO",
-                Optional[List[str]],
-                "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
-            ),
-        ]
-    )
+    config_vars = DFTCommon.config_vars + dft_pin_vars
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "boundary_scan.py")
@@ -160,17 +158,7 @@ class Cut(PyosysStep):
     inputs = [DesignFormat.nl]
     outputs = [DesignFormat.cut_nl]
 
-    config_vars = (
-        DFTCommon.config_vars
-        + dft_pin_vars
-        + [
-            Variable(
-                "DFT_BSCAN_EXCLUDE_IO",
-                Optional[List[str]],
-                "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
-            ),
-        ]
-    )
+    config_vars = DFTCommon.config_vars + dft_pin_vars
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "cut.py")
@@ -195,9 +183,103 @@ class Cut(PyosysStep):
         return state_out, metrics
 
 
+DesignFormat("bench", "bench", "DFT Bench Format").register()
+
+
+@Step.factory.register()
+class WriteBench(Step):
+    id = "Difetto.WriteBench"
+
+    inputs = [DesignFormat.cut_nl]
+    outputs = [DesignFormat.bench]
+
+    def run(self, state_in, **kwargs):
+        lib_list = self.toolbox.filter_views(self.config, self.config["LIB"])
+        out_path = os.path.join(
+            self.step_dir,
+            f"{self.config['DESIGN_NAME']}.{DesignFormat.bench.extension}",
+        )
+        cmd = [
+            "nl2bench",
+            "--output",
+            out_path,
+            "--msb-first",
+            str(state_in[DesignFormat.cut_nl]),
+        ]
+        for lib in lib_list:
+            cmd.extend(["--lib-file", lib])
+        self.run_subprocess(cmd)
+        return {DesignFormat.bench: Path(out_path)}, {}
+
+
 DesignFormat(
-    "chains_yml",
-    "chains.yml",
+    "raw_tvs",
+    "raw_tvs.txt",
+    "Test Vectors (Cut Netlist Port Order)",
+).register()
+
+
+class QuaighATPG(Step):
+    id = "Difetto.QuaighATPG"
+
+    name = "ATPG with Quaigh"
+
+    inputs = [DesignFormat.bench]
+    outputs = [DesignFormat.raw_tvs]
+
+    def run(self, state_in, **kwargs):
+        out_path = os.path.join(
+            self.step_dir,
+            f"{self.config['DESIGN_NAME']}.{DesignFormat.raw_tvs.extension}",
+        )
+        cmd = [
+            "quaigh",
+            "atpg",
+            "--output",
+            out_path,
+            str(state_in[DesignFormat.bench]),
+        ]
+        self.run_subprocess(cmd)
+        return {DesignFormat.raw_tvs: Path(out_path)}, {}
+
+
+DesignFormat(
+    "raw_au",
+    "raw_au.txt",
+    "Test Vector Golden Output (Cut Netlist Port Order)",
+).register()
+
+
+class QuaighSim(Step):
+    id = "Difetto.QuaighSim"
+
+    name = "Simulation for Golden Outputs"
+    long_name = "Simulation for Golden Outputs (with Quaigh)"
+
+    inputs = [DesignFormat.bench, DesignFormat.raw_tvs]
+    outputs = [DesignFormat.raw_au]
+
+    def run(self, state_in, **kwargs):
+        out_path = os.path.join(
+            self.step_dir,
+            f"{self.config['DESIGN_NAME']}.{DesignFormat.raw_au.extension}",
+        )
+        cmd = [
+            "quaigh",
+            "sim",
+            "--output",
+            out_path,
+            "--input",
+            str(state_in[DesignFormat.raw_tvs]),
+            str(state_in[DesignFormat.bench]),
+        ]
+        self.run_subprocess(cmd)
+        return {DesignFormat.raw_au: Path(out_path)}, {}
+
+
+DesignFormat(
+    "chain_yml",
+    "chain.yml",
     "Scan Chains (YAML format)",
 ).register()
 
@@ -207,7 +289,7 @@ class Chain(OpenROADStep):
     id = "Difetto.Chain"
     name = "Create Scan Chains"
 
-    outputs = OpenROADStep.outputs + [DesignFormat.chains_yml]
+    outputs = OpenROADStep.outputs + [DesignFormat.chain_yml]
 
     config_vars = OpenROADStep.config_vars + dft_common_vars + dft_pin_vars
 
@@ -216,10 +298,88 @@ class Chain(OpenROADStep):
 
     def run(self, state_in, **kwargs):
         views, metrics = super().run(state_in, **kwargs)
-        views[DesignFormat.chains_yml] = Path(
+        views[DesignFormat.chain_yml] = Path(
             os.path.join(
                 self.step_dir,
-                f"{self.config['DESIGN_NAME']}.{DesignFormat.chains_yml.extension}",
+                f"{self.config['DESIGN_NAME']}.{DesignFormat.chain_yml.extension}",
             )
         )
         return views, metrics
+
+
+class CocotbStep(Step):
+    inputs = [DesignFormat.nl]
+    outputs = []
+
+    _cocotb_python_bin: ClassVar[Optional[str]] = None
+
+    config_vars = [
+        Variable(
+            "DFT_COCOTB_SIM",
+            Literal["icarus"],
+            "The simulator to use for Cocotb.",
+            default="icarus",
+        )
+    ]
+
+    @classmethod
+    def get_cocotb_python_bin(Self):
+        if cached := Self._cocotb_python_bin:
+            return cached
+        cocotb_python_bin = "python3"
+        try:
+            result = subprocess.run(
+                ["cocotb-config", "--python-bin"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding="utf8",
+            )
+            if result.returncode != 0:
+                warn(f"cocotb-config had an unexpected result: {result.stderr}")
+            else:
+                cocotb_python_bin = result.stdout.strip()
+        except FileNotFoundError:
+            warn("cocotb-config not found: may fail to run cocotb-based tests")
+        Self._cocotb_python_bin = cocotb_python_bin
+        return cocotb_python_bin
+
+    def get_command(self, state_in):
+        return [
+            self.get_cocotb_python_bin(),
+            self.get_script_path(),
+            "--config",
+            self.config_path,
+            *[str(model) for model in self.config["CELL_VERILOG_MODELS"]],
+        ]
+
+    @abstractmethod
+    def get_script_path(self):
+        pass
+
+    def run(self, state_in, **kwargs):
+        command = self.get_command(state_in)
+        subprocess_result = self.run_subprocess(
+            command,
+            **kwargs,
+        )
+        generated_metrics = subprocess_result["generated_metrics"]
+        return {}, generated_metrics
+
+
+@Step.factory.register()
+class ValidateChain(CocotbStep):
+    id = "Difetto.ValidateChain"
+
+    inputs = CocotbStep.inputs + [DesignFormat.chain_yml]
+
+    config_vars = CocotbStep.config_vars + dft_pin_vars
+
+    def get_command(self, state_in):
+        return super().get_command(state_in) + [
+            "--chain-yml",
+            str(state_in[DesignFormat.chain_yml]),
+            str(state_in[DesignFormat.nl]),
+        ]
+
+    def get_script_path(self):
+        return os.path.join(__file_dir__, "scripts", "cocotb", "validate_chain.py")

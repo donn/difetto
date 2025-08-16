@@ -34,6 +34,14 @@
             src = "${self}/yosys-plugin";
           };
         })
+        (nix-eda.composePythonOverlay (pkgs': pkgs: pypkgs': pypkgs: let
+          callPythonPackage = lib.callPackageWith (pkgs' // pypkgs');
+        in {
+          cocotb = pypkgs.cocotb.overridePythonAttrs({
+            doCheck = false;
+            meta.broken = false;
+          });
+        }))
       ];
     };
 
@@ -59,6 +67,8 @@
         callPackage = lib.callPackageWith pkgs;
       in {
         default = callPackage (librelane.createOpenLaneShell {
+          extra-packages = [ pkgs.quaigh pkgs.python3.pkgs.nl2bench ];
+          extra-python-packages = [ pkgs.python3.pkgs.cocotb ];
           librelane-extra-yosys-plugins = [pkgs.yosys-difetto];
         }) {};
       }
