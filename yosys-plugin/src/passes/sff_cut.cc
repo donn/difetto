@@ -95,7 +95,7 @@ struct SDFFCutPass : public DifettoPass {
 		}
 		module->fixup_ports();
 
-		// Inputs: Handle difetto IBSRs
+		// Handle BSRs
 		for (auto [id, cell] : module->cells_) {
 			if (!design->modules_.count(cell->type)) {
 				continue;
@@ -109,6 +109,14 @@ struct SDFFCutPass : public DifettoPass {
 				cell->setParam(ID(WIDTH), cell->getPort(ID(D)).bits().size());
 				cell->type = ID(_difetto_ibsr_dummy);
 			}
+			if ((target_module->has_attribute(ID(hdlname)) && target_module->get_string_attribute(ID(hdlname)) == "_difetto_obsr") ||
+			    target_module->name == ID(_difetto_obsr)) {
+				log("identified difetto output bsr %s, shorting "
+				    "D to Q...\n",
+				    cell->name.c_str());
+				cell->setParam(ID(WIDTH), cell->getPort(ID(D)).bits().size());
+				cell->type = ID(_difetto_obsr_dummy);
+			}
 		}
 
 		// Cut remaining scanflops
@@ -119,53 +127,17 @@ struct SDFFCutPass : public DifettoPass {
 				continue;
 			}
 			marked.push_back(instance);
-			auto output_bits = mw.cell_outputs[instance];
-			std::optional<std::string> io_name;
-			std::optional<SigBit> input_bsr;
-			std::optional<SigBit> output_bsr;
-			for (auto bit : output_bits) {
-				auto wire_name = bit.wire->name.str();
-				auto ibsr_pos = wire_name.rfind(".ibsr_out");
-				if (ibsr_pos != std::string::npos) {
-					io_name = bit.wire->name.str();
-					io_name->erase(ibsr_pos, std::string::npos);
-					input_bsr = bit;
-					break;
-				}
-				auto obsr_pos = wire_name.rfind(".obsr_out");
-				if (obsr_pos != std::string::npos) {
-					io_name = bit.wire->name.str();
-					io_name->erase(obsr_pos, std::string::npos);
-					bit.wire->set_bool_attribute(ID(keep), false);
-					output_bsr = bit;
-					break;
-				}
-			}
 			auto d_spec = instance->getPort(IdString("\\D"));
 			auto q_spec = instance->getPort(IdString("\\Q"));
-			if (input_bsr) {
-				// Leftover code from previous approach
-				// (manually constructing an IBSR)
-				log("identified input bsr %s for %s[%i], "
-				    "replacing muxed value with 0...\n",
-				    instance_name.c_str(), io_name->c_str(), input_bsr->offset);
-				Const coerced_constant(State::S0, q_spec.size());
-				module->connect(q_spec, coerced_constant);
-			} else if (output_bsr) {
-				log("identified output bsr %s for %s[%i], not "
-				    "cutting...\n",
-				    instance_name.c_str(), io_name->c_str(), output_bsr->offset);
-			} else {
-				std::string bsr_name = instance_name.str();
-				IdString q(bsr_name + ".q");
-				IdString d(bsr_name + ".d");
-				Wire *q_port = module->addWire(q, 1);
-				q_port->port_input = true;
-				Wire *d_port = module->addWire(d, 1);
-				d_port->port_output = true;
-				module->connect(d_port, d_spec);
-				module->connect(q_spec, q_port);
-			}
+			std::string bsr_name = instance_name.str();
+			IdString q(bsr_name + ".q");
+			IdString d(bsr_name + ".d");
+			Wire *q_port = module->addWire(q, 1);
+			q_port->port_input = true;
+			Wire *d_port = module->addWire(d, 1);
+			d_port->port_output = true;
+			module->connect(d_port, d_spec);
+			module->connect(q_spec, q_port);
 		}
 
 		for (auto cell : marked) {

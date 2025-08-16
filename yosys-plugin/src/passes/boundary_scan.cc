@@ -93,19 +93,17 @@ struct BoundaryScanPass : public DifettoPass {
 		}
 
 		for (auto output : outputs) {
-			// Create dummy wire for stored value
-			std::string stored_name = output->name.str() + ".obsr_out";
-			IdString stored_id(stored_name);
-			auto stored = module->addWire(stored_id, output);
-			stored->port_output = false;
-
-			// Prevent opt passes from pruning wire and driving dff
-			stored->set_bool_attribute(ID(keep), true);
-
-			// Create dummy
-			std::string bsr_name = output->name.str() + ".obsr";
+			auto input_id = output->name;
+			
+			std::string bsr_name = input_id.str() + ".obsr";
 			IdString bsr_id(bsr_name);
-			module->addDff(bsr_id, clock_wire, SigSpec(output), SigSpec(stored), !clock_negedge);
+			
+			auto bsr = module->addCell(bsr_name, ID(_difetto_obsr));
+			bsr->setParam(ID(WIDTH), output->width);
+			bsr->setParam(ID(CLK_POLARITY), clock_negedge ? Const(State::S0, 1) : Const(State::S1, 1));
+			bsr->setPort(ID(D), output);
+			bsr->setPort(ID(CLK), clock_wire);
+			bsr->set_bool_attribute(ID(keep), true);
 		}
 		module->fixup_ports();
 	}
