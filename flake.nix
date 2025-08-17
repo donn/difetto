@@ -41,6 +41,9 @@
             doCheck = false;
             meta.broken = false;
           });
+          librelane = pypkgs.librelane.override({
+            extra-python-interpreter-packages = ps: with ps; [ bitarray marshmallow-dataclass ];
+          });
         }))
       ];
     };
@@ -68,7 +71,7 @@
       in {
         default = callPackage (librelane.createOpenLaneShell {
           extra-packages = [ pkgs.quaigh pkgs.python3.pkgs.nl2bench ];
-          extra-python-packages = [ pkgs.python3.pkgs.cocotb ];
+          extra-python-packages = [ pkgs.python3.pkgs.cocotb pkgs.python3.pkgs.marshmallow-dataclass ];
           librelane-extra-yosys-plugins = [pkgs.yosys-difetto];
         }) {};
       }

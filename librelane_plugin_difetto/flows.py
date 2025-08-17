@@ -23,4 +23,4 @@ class DifettoATPG(SequentialFlow):
 
 @Flow.factory.register()
 class DifettoTest(SequentialFlow):
-    Steps = [Difetto.ValidateChain]
+    Steps = [Difetto.AssemblePatterns, Difetto.ValidateChain, Difetto.RunTestVectors]

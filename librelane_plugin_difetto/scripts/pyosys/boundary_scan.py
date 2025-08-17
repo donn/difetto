@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Mohamed Gaber
 import json
+import os
+import shlex
 import click
 
 from ys_common import ys
@@ -38,6 +40,11 @@ def boundary_scan(output, config_in, input):
         config["DFT_TEST_CLOCK_WIRE"],
         *exclude_io_args,
     )
+
+    dfflibmap_args = []
+    for lib in shlex.split(os.environ["_libs_synth"]):
+        dfflibmap_args.extend(["-liberty", lib])
+    d.run_pass("dfflibmap", *dfflibmap_args)
 
     d.run_pass("write_verilog", output)
 

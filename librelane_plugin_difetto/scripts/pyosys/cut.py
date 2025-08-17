@@ -24,6 +24,12 @@ def cut(output, config_in, input):
     dft_top = config["DFT_TOP_MODULE"] or config["DESIGN_NAME"]
     d.run_pass("select", dft_top)
 
+    exclude_io_args = []
+    if exclude_ios := config["DFT_BSCAN_EXCLUDE_IO"]:
+        for io in exclude_ios:
+            exclude_io_args.append("-exclude_io")
+            exclude_io_args.append(io)
+
     d.run_pass(
         "sdff_cut",
         "-json_mapping",
@@ -32,6 +38,7 @@ def cut(output, config_in, input):
         config["DFT_TEST_MODE_WIRE"],
         "-clock",
         config["DFT_TEST_CLOCK_WIRE"],
+        *exclude_io_args,
     )
     d.run_pass("hierarchy")
     d.run_pass("flatten")

@@ -4,14 +4,15 @@ import os
 import subprocess
 from abc import abstractmethod
 from librelane.steps import Step, StepException
+from librelane.steps.tclstep import TclStep
 from librelane.steps.pyosys import PyosysStep
 from librelane.steps.openroad import OpenROADStep
 from librelane.state import DesignFormat
 from librelane.config import Variable
-from librelane.common import Path
+from librelane.common import Path, get_script_dir, process_list_file
 from librelane.logging import warn
 
-from typing import ClassVar, List, Literal, Optional
+from typing import ClassVar, List, Literal, Optional, Set
 
 __file_dir__ = os.path.dirname(os.path.abspath(__file__))
 
@@ -104,20 +105,36 @@ class DFTCommon(PyosysStep):
     config_vars = PyosysStep.config_vars + dft_common_vars
 
     def get_command(self, state_in) -> List[str]:
+        out_type = self.outputs[0]
         out_file = os.path.join(
             self.step_dir,
-            f"{self.config['DESIGN_NAME']}.{DesignFormat.nl.extension}",
+            f"{self.config['DESIGN_NAME']}.{out_type.extension}",
         )
         cmd = super().get_command(state_in)
         return cmd + ["--output", out_file, state_in[DesignFormat.nl]]
 
     def run(self, state_in, **kwargs):
         kwargs, env = self.extract_env(kwargs)
+        env["PYTHONPATH"] = os.path.join(get_script_dir(), "pyosys")
+        scl_lib_list = self.toolbox.filter_views(
+            self.config, self.config["LIB"], self.config.get("SYNTH_CORNER")
+        )
+        excluded_cells: Set[str] = set(self.config["EXTRA_EXCLUDED_CELLS"] or [])
+        excluded_cells.update(
+            process_list_file(self.config["SYNTH_EXCLUDED_CELL_FILE"])
+        )
+        excluded_cells.update(process_list_file(self.config["PNR_EXCLUDED_CELL_FILE"]))
+        libs_synth = self.toolbox.remove_cells_from_lib(
+            frozenset([str(lib) for lib in scl_lib_list]),
+            excluded_cells=frozenset(excluded_cells),
+        )
+        env["_libs_synth"] = TclStep.value_to_tcl(libs_synth)
         state_out, metrics = super().run(state_in, env=env, **kwargs)
-        state_out[DesignFormat.nl] = Path(
+        out_type = self.outputs[0]
+        state_out[out_type] = Path(
             os.path.join(
                 self.step_dir,
-                f"{self.config['DESIGN_NAME']}.{DesignFormat.nl.extension}",
+                f"{self.config['DESIGN_NAME']}.{out_type.extension}",
             )
         )
         return state_out, metrics
@@ -151,7 +168,7 @@ DesignFormat(
 
 
 @Step.factory.register()
-class Cut(PyosysStep):
+class Cut(DFTCommon):
     id = "Difetto.Cut"
     name = "Create Cutaway Netlist"
 
@@ -162,25 +179,6 @@ class Cut(PyosysStep):
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "pyosys", "cut.py")
-
-    def get_command(self, state_in) -> List[str]:
-        out_file = os.path.join(
-            self.step_dir,
-            f"{self.config['DESIGN_NAME']}.{DesignFormat.cut_nl.extension}",
-        )
-        cmd = super().get_command(state_in)
-        return cmd + ["--output", out_file, state_in[DesignFormat.nl]]
-
-    def run(self, state_in, **kwargs):
-        kwargs, env = self.extract_env(kwargs)
-        state_out, metrics = super().run(state_in, env=env, **kwargs)
-        state_out[DesignFormat.cut_nl] = Path(
-            os.path.join(
-                self.step_dir,
-                f"{self.config['DESIGN_NAME']}.{DesignFormat.cut_nl.extension}",
-            )
-        )
-        return state_out, metrics
 
 
 DesignFormat("bench", "bench", "DFT Bench Format").register()
@@ -358,9 +356,11 @@ class CocotbStep(Step):
 
     def run(self, state_in, **kwargs):
         command = self.get_command(state_in)
+        kwargs, env = self.extract_env(kwargs)
         subprocess_result = self.run_subprocess(
             command,
             **kwargs,
+            env=env,
         )
         generated_metrics = subprocess_result["generated_metrics"]
         return {}, generated_metrics
@@ -383,3 +383,95 @@ class ValidateChain(CocotbStep):
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "cocotb", "validate_chain.py")
+
+
+DesignFormat(
+    "tvs",
+    "tvs.bin",
+    "Test Vectors (Binary Format)",
+).register()
+
+DesignFormat(
+    "au",
+    "au.bin",
+    "Test Vector Golden Output (Binary Format)",
+).register()
+
+DesignFormat(
+    "mask",
+    "mask.bin",
+    "Golden Output Mask (Binary Format)",
+).register()
+
+
+@Step.factory.register()
+class AssemblePatterns(PyosysStep):
+    id = "Difetto.AssemblePatterns"
+
+    inputs = [
+        DesignFormat.cut_nl,
+        DesignFormat.chain_yml,
+        DesignFormat.raw_au,
+        DesignFormat.raw_tvs,
+    ]
+    outputs = [DesignFormat.au, DesignFormat.tvs, DesignFormat.mask]
+
+    def get_script_path(self):
+        return os.path.join(__file_dir__, "scripts", "pyosys", "assemble.py")
+
+    def get_command(self, state_in) -> List[str]:
+        out_pfx = os.path.join(
+            self.step_dir,
+            f"{self.config['DESIGN_NAME']}",
+        )
+
+        cmd = super().get_command(state_in)
+        for input in self.inputs:
+            cmd.extend(["--" + input.id.replace("_", "-"), str(state_in[input])])
+        for output in self.outputs:
+            cmd.extend(
+                [
+                    "--" + output.id.replace("_", "-") + "-out",
+                    f"{out_pfx}.{output.extension}",
+                ]
+            )
+
+        cmd.remove("--cut-nl")
+
+        return cmd
+
+    def run(self, state_in, **kwargs):
+        kwargs, env = self.extract_env(kwargs)
+        env["PYTHONPATH"] = os.path.join(get_script_dir(), "pyosys")
+        state_out, metrics = super().run(state_in, env=env, **kwargs)
+        out_pfx = os.path.join(
+            self.step_dir,
+            f"{self.config['DESIGN_NAME']}",
+        )
+        state_out[DesignFormat.au] = Path(f"{out_pfx}.{DesignFormat.au.extension}")
+        state_out[DesignFormat.tvs] = Path(f"{out_pfx}.{DesignFormat.tvs.extension}")
+        state_out[DesignFormat.mask] = Path(f"{out_pfx}.{DesignFormat.mask.extension}")
+        return state_out, metrics
+
+
+@Step.factory.register()
+class RunTestVectors(CocotbStep):
+    id = "Difetto.RunTestVectors"
+
+    inputs = CocotbStep.inputs + [DesignFormat.au, DesignFormat.tvs, DesignFormat.mask]
+
+    config_vars = CocotbStep.config_vars + dft_pin_vars
+
+    def get_command(self, state_in):
+        return super().get_command(state_in) + [
+            "--tvs",
+            str(state_in[DesignFormat.tvs]),
+            "--mask",
+            str(state_in[DesignFormat.mask]),
+            "--au",
+            str(state_in[DesignFormat.au]),
+            str(state_in[DesignFormat.nl]),
+        ]
+
+    def get_script_path(self):
+        return os.path.join(__file_dir__, "scripts", "cocotb", "run_tvs.py")

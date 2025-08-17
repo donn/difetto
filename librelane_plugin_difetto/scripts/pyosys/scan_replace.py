@@ -22,7 +22,7 @@ def scan_replace(output, config_in, input):
     d.run_pass("hierarchy", "-top", config["DESIGN_NAME"])
 
     dft_top = config["DFT_TOP_MODULE"] or config["DESIGN_NAME"]
-    d.run_pass("select", dft_top, "A:hdlname=_difetto_ibsr")
+    d.run_pass("select", dft_top, "A:hdlname=_difetto_*bsr")
 
     d.run_pass(
         "scan_replace",
