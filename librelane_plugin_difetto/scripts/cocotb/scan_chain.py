@@ -1,3 +1,5 @@
+import io
+import sys
 from bitarray import bitarray
 
 from cocotb.triggers import RisingEdge
@@ -13,6 +15,7 @@ async def run_scan(
     tv: bitarray,
     au: bitarray,
     mask: bitarray,
+    diff_file: io.TextIOWrapper = sys.stdout,
     wait_cycle=True,
 ):
     tm.value = 1
@@ -51,9 +54,10 @@ async def run_scan(
 
     out = bitarray(scan_out_reg.binstr) & mask
     diff = au ^ out
-    print("&", mask.to01())
-    print("-", au.to01())
-    print("+", out.to01())
-    print("^", (au ^ out).to01())
+    if diff_file is not None:
+        print("&", mask.to01(), file=diff_file)
+        print("-", au.to01(), file=diff_file)
+        print("+", out.to01(), file=diff_file)
+        print("^", diff.to01(), file=diff_file)
 
     return diff

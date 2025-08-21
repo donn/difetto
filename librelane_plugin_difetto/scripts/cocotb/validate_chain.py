@@ -1,7 +1,8 @@
-import json
 import os
 import sys
+import json
 import random
+from pathlib import Path
 
 import yaml
 from bitarray import bitarray
@@ -13,9 +14,10 @@ from cocotb.runner import get_runner
 
 from scan_chain import run_scan
 
-__file_dir__ = os.path.dirname(os.path.abspath(__file__))
+__file_dir__ = Path(__file__).absolute().parent
 
-sys.path.append(os.path.join(os.path.dirname(__file_dir__), "common"))
+sys.path.append(str(__file_dir__.parent / "common"))
+
 from chain import load_chains
 
 
@@ -91,6 +93,15 @@ if __name__ == "__main__":
 
     @click.command()
     @click.option(
+        "--step-dir",
+        required=True,
+        type=click.Path(
+            exists=False,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    )
+    @click.option(
         "--config",
         required=True,
         type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
@@ -107,7 +118,7 @@ if __name__ == "__main__":
         type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
     )
     @click.argument("sources", nargs=-1)
-    def main(config, chain_yml, sources):
+    def main(step_dir, config, chain_yml, sources):
         config_dict = json.load(open(config, encoding="utf8"))
         runner = get_runner(config_dict["DFT_COCOTB_SIM"])
         print("%OL_CREATE_REPORT compile.rpt")
@@ -122,7 +133,11 @@ if __name__ == "__main__":
         runner.test(
             hdl_toplevel=config_dict["DESIGN_NAME"],
             test_module="validate_chain,",
-            extra_env={"CURRENT_CHAIN_YML": chain_yml, "STEP_CONFIG": config},
+            extra_env={
+                "CURRENT_CHAIN_YML": chain_yml,
+                "STEP_CONFIG": config,
+                "STEP_DIR": step_dir,
+            },
             waves=True,
         )
 

@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Mohamed Gaber
-import os
 import re
 import sys
 import json
 import bitarray
 import click
 import yaml
+from pathlib import Path
 
 from ys_common import ys
 
-__file_dir__ = os.path.dirname(os.path.abspath(__file__))
+__file_dir__ = Path(__file__).absolute().parent
 
-sys.path.append(os.path.join(os.path.dirname(__file_dir__), "common"))
+sys.path.append(str(__file_dir__.parent / "common"))
 
 from chain import load_chains
 from patterns import read_patterns_text, write_pattern_bin
@@ -107,7 +107,6 @@ def assemble(tvs_out, au_out, mask_out, raw_tvs, raw_au, chain_yml, config_in, i
             assembled = bitarray.bitarray("0" * chain_length, endian="little")
             for value, location in zip(tv, tv_assembly_locations):
                 assembled[location] = value
-            print(assembled)
             write_pattern_bin(tv_out_f, assembled)
 
     # with open(tvs_out, "rb") as check:

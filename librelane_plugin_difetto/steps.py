@@ -142,8 +142,16 @@ class DFTCommon(PyosysStep):
 
 @Step.factory.register()
 class BoundaryScan(DFTCommon):
+    """
+    Uses Yosys with the Difetto plugin to create boundary scan registers
+    on all inputs and outputs (except excluded IOs.)
+
+    These registers allow for controlling inputs and capturing outputs as part
+    of the scan chain.
+    """
+
     id = "Difetto.BoundaryScan"
-    name = "Create Boundary Scan Flipflops"
+    name = "Create Boundary Scan Flip-flops"
 
     config_vars = DFTCommon.config_vars + dft_pin_vars
 
@@ -153,6 +161,11 @@ class BoundaryScan(DFTCommon):
 
 @Step.factory.register()
 class ScanReplace(DFTCommon):
+    """
+    Uses Yosys with the Difetto plugin to replace flip-flops in the desired
+    module with scannable versions. The scan chain is not created yet.
+    """
+
     id = "Difetto.ScanReplace"
     name = "Replace Flipflops with Scannable Flipflops"
 
@@ -169,6 +182,14 @@ DesignFormat(
 
 @Step.factory.register()
 class Cut(DFTCommon):
+    """
+    Uses Yosys with the Difetto plugin to create a combinational "cut-away"
+    netlist that can be used with automatic test pattern generation (ATPG)
+    tools.
+
+    Excluded IOs are coerced to high (or low if prefixed with !.)
+    """
+
     id = "Difetto.Cut"
     name = "Create Cutaway Netlist"
 
@@ -186,7 +207,13 @@ DesignFormat("bench", "bench", "DFT Bench Format").register()
 
 @Step.factory.register()
 class WriteBench(Step):
+    """
+    Converts cutaway combinational netlists into the BENCH format popular with
+    academic ATPG utilities using a tool named nl2bench.
+    """
+
     id = "Difetto.WriteBench"
+    name = "Write Cutaway Netlist in BENCH format"
 
     inputs = [DesignFormat.cut_nl]
     outputs = [DesignFormat.bench]
@@ -218,8 +245,12 @@ DesignFormat(
 
 
 class QuaighATPG(Step):
-    id = "Difetto.QuaighATPG"
+    """
+    Performs analytic automatic test pattern generation using Quaigh to produce
+    test vectors in the port order of inputs in cutaway netlists.
+    """
 
+    id = "Difetto.QuaighATPG"
     name = "ATPG with Quaigh"
 
     inputs = [DesignFormat.bench]
@@ -249,6 +280,11 @@ DesignFormat(
 
 
 class QuaighSim(Step):
+    """
+    Analytically simulates test patterns using Quaigh to generate expected
+    "golden" outputs in the port order of inputs in cutaway netlists.
+    """
+
     id = "Difetto.QuaighSim"
 
     name = "Simulation for Golden Outputs"
@@ -284,8 +320,16 @@ DesignFormat(
 
 @Step.factory.register()
 class Chain(OpenROADStep):
+    """
+    Uses OpenROAD to create scan chain(s) between registers.
+
+    Currently only one scan chain is supported.
+
+    The chain's instance order is dumped into a YAML file.
+    """
+
     id = "Difetto.Chain"
-    name = "Create Scan Chains"
+    name = "Create Scan Chain(s)"
 
     outputs = OpenROADStep.outputs + [DesignFormat.chain_yml]
 
@@ -345,6 +389,8 @@ class CocotbStep(Step):
         return [
             self.get_cocotb_python_bin(),
             self.get_script_path(),
+            "--step-dir",
+            self.step_dir,
             "--config",
             self.config_path,
             *[str(model) for model in self.config["CELL_VERILOG_MODELS"]],
@@ -368,6 +414,11 @@ class CocotbStep(Step):
 
 @Step.factory.register()
 class ValidateChain(CocotbStep):
+    """
+    Uses Cocotb to validate a netlist with a scan-chain.
+    """
+
+    name = "Validate Scan Chain (with Cocotb)"
     id = "Difetto.ValidateChain"
 
     inputs = CocotbStep.inputs + [DesignFormat.chain_yml]
@@ -406,7 +457,19 @@ DesignFormat(
 
 @Step.factory.register()
 class AssemblePatterns(PyosysStep):
+    """
+    Uses Yosys, the chain YAML file, the cutaway netlist, and raw test vectors
+    to generate:
+    - Test Vectors
+    - Expected (Golden) Outputs
+    - Output Mask
+
+    …all based on the order of the chain. The mask excludes uncontrollable bits
+    such as input boundary scan registers.
+    """
+
     id = "Difetto.AssemblePatterns"
+    name = "Test Pattern Assembly"
 
     inputs = [
         DesignFormat.cut_nl,
@@ -455,8 +518,18 @@ class AssemblePatterns(PyosysStep):
 
 
 @Step.factory.register()
-class RunTestVectors(CocotbStep):
-    id = "Difetto.RunTestVectors"
+class SimulateTestVectors(CocotbStep):
+    """
+    The "finale" - uses all data from all three flows to:
+
+    - Feed in a test vector to the scan chain
+    - Wait one cycle
+    - Scan out
+    - Compare the output with the expected output
+    """
+
+    id = "Difetto.SimulateTestVectors"
+    name = "Simulate Test Vectors"
 
     inputs = CocotbStep.inputs + [DesignFormat.au, DesignFormat.tvs, DesignFormat.mask]
 

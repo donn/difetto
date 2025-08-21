@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
@@ -9,9 +10,9 @@ from cocotb.runner import get_runner
 
 from scan_chain import run_scan
 
-__file_dir__ = os.path.dirname(os.path.abspath(__file__))
+__file_dir__ = Path(__file__).absolute().parent
 
-sys.path.append(os.path.join(os.path.dirname(__file_dir__), "common"))
+sys.path.append(str(__file_dir__.parent / "common"))
 
 from patterns import read_patterns_bin
 
@@ -52,16 +53,39 @@ async def chain_test(dut: HierarchyObject):
             port.value = value_to_coerce
     cocotb.start_soon(test_clock.start(start_high=False))
 
+    step_dir = Path(os.environ["STEP_DIR"])
+    diff_dir = step_dir / "diffs"
+    diff_dir.mkdir(parents=True, exist_ok=True)
+
+    bad_values = 0
     with open(os.environ["CURRENT_TVS"], "rb") as tvs_f, open(
         os.environ["CURRENT_AU"], "rb"
     ) as au_f:
         for i, (tv, au) in enumerate(
             zip(read_patterns_bin(tvs_f), read_patterns_bin(au_f))
         ):
-            diff = await run_scan(tck, tm, sce, sci, sco, tv, au, mask, wait_cycle=True)
+            cocotb.log.info(f"Running test vector {i}…")
+            with open(diff_dir / f"tv_{i}.log", "w", encoding="utf8") as diff_f:
+                diff = await run_scan(
+                    tck,
+                    tm,
+                    sce,
+                    sci,
+                    sco,
+                    tv,
+                    au,
+                    mask,
+                    diff_file=diff_f,
+                    wait_cycle=True,
+                )
 
             if diff.count(1) != 0:
+                bad_values += 1
                 cocotb.log.error(f"Test vector {i} failed.")
+            else:
+                cocotb.log.info(f"Test vector {i} succeeded.")
+
+    assert bad_values == 0, "One or more test chains did not respond as expected."
 
 
 if __name__ == "__main__":
@@ -70,6 +94,15 @@ if __name__ == "__main__":
     import click
 
     @click.command()
+    @click.option(
+        "--step-dir",
+        required=True,
+        type=click.Path(
+            exists=False,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    )
     @click.option(
         "--config",
         required=True,
@@ -97,7 +130,7 @@ if __name__ == "__main__":
         type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
     )
     @click.argument("sources", nargs=-1)
-    def main(config, au, tvs, mask, sources):
+    def main(step_dir, config, au, tvs, mask, sources):
         config_dict = json.load(open(config, encoding="utf8"))
         runner = get_runner(config_dict["DFT_COCOTB_SIM"])
         print("%OL_CREATE_REPORT compile.rpt")
@@ -117,6 +150,7 @@ if __name__ == "__main__":
                 "CURRENT_TVS": tvs,
                 "CURRENT_MASK": mask,
                 "STEP_CONFIG": config,
+                "STEP_DIR": step_dir,
             },
             waves=True,
         )
