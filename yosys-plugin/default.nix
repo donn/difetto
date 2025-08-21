@@ -43,7 +43,7 @@ yosys.stdenv.mkDerivation (finalAttrs: {
     python3.pkgs.nl2bench
     quaigh
   ];
-  
+
   installPhase = ''
     runHook preInstall
     mkdir -p $out/share/yosys/plugins

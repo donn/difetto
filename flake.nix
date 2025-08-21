@@ -24,11 +24,13 @@
         (pkgs': pkgs: let
           callPackage = lib.callPackageWith pkgs';
         in {
-          openroad = pkgs.openroad.overrideAttrs(attrs': attrs: {
-            patches = attrs.patches ++ [
-              ./nix/openroad/dft_npe.patch
-              ./nix/openroad/dft_save_clk.patch
-            ];
+          openroad = pkgs.openroad.overrideAttrs (attrs': attrs: {
+            patches =
+              attrs.patches
+              ++ [
+                ./nix/openroad/dft_npe.patch
+                ./nix/openroad/dft_save_clk.patch
+              ];
           });
           yosys-difetto = callPackage ./yosys-plugin/default.nix {
             src = "${self}/yosys-plugin";
@@ -37,13 +39,13 @@
         (nix-eda.composePythonOverlay (pkgs': pkgs: pypkgs': pypkgs: let
           callPythonPackage = lib.callPackageWith (pkgs' // pypkgs');
         in {
-          cocotb = pypkgs.cocotb.overridePythonAttrs({
+          librelane-plugin-difetto = callPythonPackage ./default.nix {
+            src = self;
+          };
+          cocotb = pypkgs.cocotb.overridePythonAttrs {
             doCheck = false;
             meta.broken = false;
-          });
-          librelane = pypkgs.librelane.override({
-            extra-python-interpreter-packages = ps: with ps; [ bitarray marshmallow-dataclass ];
-          });
+          };
         }))
       ];
     };
@@ -67,12 +69,18 @@
     devShells = nix-eda.forAllSystems (
       system: let
         pkgs = self.legacyPackages."${system}";
-        callPackage = lib.callPackageWith pkgs;
+        callPackage = lib.callPackageWith (pkgs // pkgs.python3.pkgs);
       in {
         default = callPackage (librelane.createOpenLaneShell {
-          extra-packages = [ pkgs.quaigh pkgs.python3.pkgs.nl2bench ];
-          extra-python-packages = [ pkgs.python3.pkgs.cocotb pkgs.python3.pkgs.marshmallow-dataclass ];
-          librelane-extra-yosys-plugins = [pkgs.yosys-difetto];
+          extra-packages = [pkgs.quaigh pkgs.python3.pkgs.nl2bench];
+          librelane-extra-python-interpreter-packages = ps: with ps; [bitarray marshmallow-dataclass];
+          librelane-plugins = ps: with ps; [librelane-plugin-difetto];
+        }) {};
+        dev = callPackage (librelane.createOpenLaneShell {
+          extra-packages = [pkgs.quaigh pkgs.python3.pkgs.nl2bench];
+          librelane-extra-python-interpreter-packages = ps: with ps; [bitarray marshmallow-dataclass];
+          include-librelane = false;
+          librelane-plugins = ps: with ps; [librelane-plugin-difetto];
         }) {};
       }
     );

@@ -25,16 +25,7 @@ IO_PIN_ORDER_CFG: dir::pin_order.cfg
 # Technology-Specific Configs
 pdk::sky130*:
   FP_CORE_UTIL: 45
-  CLOCK_PERIOD: 10.0
-  scl::sky130_fd_sc_hs:
-    CLOCK_PERIOD: 8
-  scl::sky130_fd_sc_ls:
-    MAX_FANOUT_CONSTRAINT: 5
-pdk::gf180mcu*:
-  CLOCK_PERIOD: 24.0
-  FP_CORE_UTIL: 40
-  MAX_FANOUT_CONSTRAINT: 4
-  PL_TARGET_DENSITY: 0.5
+  CLOCK_PERIOD: 8
 
 # DFT
 DFT_TEST_MODE_WIRE: tm
