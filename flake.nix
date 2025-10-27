@@ -4,7 +4,6 @@
     nl2bench = {
       url = "github:donn/nl2bench";
       inputs.nix-eda.follows = "librelane/nix-eda";
-      inputs.libparse.follows = "librelane/libparse";
     };
   };
 
@@ -42,6 +41,10 @@
           librelane-plugin-difetto = callPythonPackage ./default.nix {
             src = self;
           };
+          nl2bench = pypkgs.nl2bench.overridePythonAttrs (attrs: {
+            nativeBuildInputs = attrs.nativeBuildInputs ++ [ pypkgs.pythonRelaxDepsHook ];
+            pythonRelaxDeps = [ "pyosys" ];
+          });
           cocotb = pypkgs.cocotb.overridePythonAttrs {
             doCheck = false;
             meta.broken = false;
