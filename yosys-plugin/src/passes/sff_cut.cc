@@ -13,18 +13,12 @@ struct SDFFCutPass : public DifettoPass {
 	const dict<std::string, Arg> args = {
 	  {"liberty", Arg{"Liberty files containing definitions of scan cells.", "filename", false, true}},
 	  {"json_mapping", Arg{"The JSON mapping file.", "filename"}},
-	  {"test_mode", Arg{"Name of wire (port or otherwise) to be used as "
-			    "the test mode select.",
-			    "wire", true}},
-	  {"clock", Arg{"Name of wire (port or otherwise) to be used as the clock for "
-			"the boundary scan registers. Prefix with ! for negative edge.",
-			"wire", true}},
-	  // {"macro", Arg{"Macro instances to also add boundary scan around. To
-	  // ignore certain ports, pass them as \"-exclude_io
-	  // instance_name/port_name\"", "instance", true}},
-	  {"exclude_io", Arg{"Top-level pins to ignore. Inputs will be coerced low "
-			     "for the purposes of the cut netlist unless prefixed with !, "
-			     "which will be coerced high.",
+	  {"test_mode", Arg{"Available for consistency with other commands, ignored.", "wire", true}},
+	  {"clock", Arg{"Available for consistency with other commands, ignored.", "wire", true}},
+	  {"macro", Arg{"Macro instances to also cut away and treat as a series of inputs and outputs to the circuit.", "instance", false, true}},
+	  {"exclude_io", Arg{"Ports to omit as inputs/outputs to the cutaway circuit, in the format <port_name> for top-level ports and "
+			     "<macro_instance>/<macro_port>. Will be coerced low in the final netlist assuming they're still consumed by anything, "
+			     "but you may prefix them with ! to coerce them high instead.",
 			     "io", false, true}},
 	};
 	const std::string description = "From a netlist with scannable flipflops, "
@@ -45,30 +39,19 @@ struct SDFFCutPass : public DifettoPass {
 	virtual const dict<std::string, Arg> &get_args() override { return args; }
 	virtual std::string_view get_description() override { return description; }
 
-	void sdff_cut(Design *design, Module *module, std::string test_mode_wire_name_raw, std::string clock_wire_name_raw,
-		      const dict<IdString, bool> &exclusions, pool<IdString> &scan_flops)
+	void sdff_cut(Design *design, Module *module_, const pool<IdString> &macros, const dict<IdString, dict<IdString, bool>> &exclusions,
+		      pool<IdString> &scan_flops)
 	{
-		if (module->has_attribute(ID(no_boundary_scan))) {
-			if (module->get_bool_attribute(ID(no_boundary_scan))) {
+		if (module_->has_attribute(ID(no_boundary_scan))) {
+			if (module_->get_bool_attribute(ID(no_boundary_scan))) {
 				return;
 			}
 		}
-		ModWalker mw(module->design, module);
-
-		// Resolve target wires
-		IdString test_mode_wire_id;
-		Wire *test_mode_wire = nullptr;
-		bool test_inverted = false;
-		resolve_wire(test_mode_wire_name_raw, module, test_mode_wire_id, test_mode_wire, test_inverted);
-
-		IdString clock_wire_id;
-		Wire *clock_wire = nullptr;
-		bool clock_negedge = false;
-		resolve_wire(clock_wire_name_raw, module, clock_wire_id, clock_wire, clock_negedge);
+		ModWalker mw(module_->design, module_);
 
 		// Collect and destroy excluded IOs
 		vector<Wire *> inputs, outputs;
-		for (auto [id, wire] : module->wires_) {
+		for (auto [id, wire] : module_->wires_) {
 			if (wire->port_output) {
 				outputs.push_back(wire);
 			} else if (wire->port_input) {
@@ -76,44 +59,48 @@ struct SDFFCutPass : public DifettoPass {
 			}
 		}
 
-		for (auto input : inputs) {
-			if (!exclusions.count(input->name)) {
-				continue;
-			}
-			// de-input and coerce
-			input->port_input = false;
+		IdString empty;
+		if (exclusions.count(IdString())) {
+			const dict<IdString, bool> *top_exclusions = &exclusions.at(IdString());
+			for (auto input : inputs) {
+				if (!top_exclusions->count(input->name)) {
+					continue;
+				}
+				// de-input and coerce
+				input->port_input = false;
 
-			Const coerced_constant(exclusions.at(input->name) ? State::S1 : State::S0, input->width);
-			module->connect(input, coerced_constant);
-		}
-
-		for (auto output : outputs) {
-			if (!exclusions.count(output->name)) {
-				continue;
+				Const coerced_constant(top_exclusions->at(input->name) ? State::S1 : State::S0, input->width);
+				module_->connect(input, coerced_constant);
 			}
-			output->port_output = false;
+
+			for (auto output : outputs) {
+				if (!top_exclusions->count(output->name)) {
+					continue;
+				}
+				output->port_output = false;
+			}
+			module_->fixup_ports();
 		}
-		module->fixup_ports();
 
 		// Handle BSRs
-		for (auto [id, cell] : module->cells_) {
+		for (auto [id, cell] : module_->cells_) {
 			if (!design->modules_.count(cell->type)) {
 				continue;
 			}
 			auto target_module = design->modules_[cell->type];
 			if ((target_module->has_attribute(ID(hdlname)) && target_module->get_string_attribute(ID(hdlname)) == "_difetto_ibsr") ||
 			    target_module->name == ID(_difetto_ibsr)) {
-				log("identified difetto input bsr %s, shorting "
-				    "D to Q...\n",
-				    cell->name.c_str());
+				log_debug("identified difetto input bsr %s, shorting "
+					  "D to Q...\n",
+					  cell->name.c_str());
 				cell->setParam(ID(WIDTH), cell->getPort(ID(D)).bits().size());
 				cell->type = ID(_difetto_ibsr_dummy);
 			}
 			if ((target_module->has_attribute(ID(hdlname)) && target_module->get_string_attribute(ID(hdlname)) == "_difetto_obsr") ||
 			    target_module->name == ID(_difetto_obsr)) {
-				log("identified difetto output bsr %s, shorting "
-				    "D to Q...\n",
-				    cell->name.c_str());
+				log_debug("identified difetto output bsr %s, shorting "
+					  "D to Q...\n",
+					  cell->name.c_str());
 				cell->setParam(ID(WIDTH), cell->getPort(ID(D)).bits().size());
 				cell->type = ID(_difetto_obsr_dummy);
 			}
@@ -121,7 +108,7 @@ struct SDFFCutPass : public DifettoPass {
 
 		// Cut remaining scanflops
 		vector<Cell *> marked;
-		for (auto pair : module->cells_) {
+		for (auto pair : module_->cells_) {
 			auto [instance_name, instance] = pair;
 			if (scan_flops.count(instance->type) == 0) {
 				continue;
@@ -132,24 +119,71 @@ struct SDFFCutPass : public DifettoPass {
 			std::string bsr_name = instance_name.str();
 			IdString q(bsr_name + ".q");
 			IdString d(bsr_name + ".d");
-			Wire *q_port = module->addWire(q, 1);
+			Wire *q_port = module_->addWire(q, 1);
 			q_port->port_input = true;
-			Wire *d_port = module->addWire(d, 1);
+			Wire *d_port = module_->addWire(d, 1);
 			d_port->port_output = true;
-			module->connect(d_port, d_spec);
-			module->connect(q_spec, q_port);
+			module_->connect(d_port, d_spec);
+			module_->connect(q_spec, q_port);
+		}
+		// Cut macros
+		for (auto macro : macros) {
+			log_debug("macro %s\n", macro.c_str());
+			auto macro_cell = module_->cell(macro);
+			if (!macro_cell) {
+				log_error("No cell with instance name %s found.\n", macro.c_str());
+			}
+			marked.push_back(macro_cell);
+
+			auto macro_module = design->module(macro_cell->type);
+			if (!macro_module) {
+				log_error("Macro %s's type %s has no definition.\n", macro.c_str(), macro_cell->type.c_str());
+			}
+
+			// remove at very end
+			const dict<IdString, bool> *current_exclusions = nullptr;
+			if (exclusions.count(macro)) {
+				current_exclusions = &exclusions.at(macro);
+			}
+			for (const auto &[port_name, port_sigspec] : macro_cell->connections_) {
+				std::stringstream bsr_name;
+				bsr_name << "\\" << macro.c_str() + 1 << "/" << port_name.c_str() + 1;
+				auto port_info = macro_module->wires_[port_name];
+				// remember: an output from a macro is an input to our circuit
+				// and vice versa.
+				if (current_exclusions && current_exclusions->count(port_name)) {
+					auto inverted = current_exclusions->at(port_name);
+					if (port_info->port_input) {
+						// no one will shed a tear for them when the macro's
+						// gone.
+					} else if (port_info->port_output) {
+						log_debug("Coerced signal from %s to %s\n", bsr_name.str().c_str(), inverted ? "HI" : "LO");
+						Const coerced_constant(inverted ? State::S1 : State::S0, port_sigspec.size());
+						module_->connect(port_sigspec, coerced_constant);
+					}
+				} else if (port_info->port_output) {
+					auto replacement_input = module_->addWire(bsr_name.str(), port_sigspec.size());
+					replacement_input->port_input = true;
+					module_->connect(port_sigspec, replacement_input);
+				} else if (port_info->port_input) {
+					auto replacement_output = module_->addWire(bsr_name.str(), port_sigspec.size());
+					replacement_output->port_output = true;
+					module_->connect(replacement_output, port_sigspec);
+				}
+			}
 		}
 
+		// Final cleanup
 		for (auto cell : marked) {
-			module->remove(cell);
+			log_debug("removing %s\n", cell->name.c_str());
+			module_->remove(cell);
 		}
 
-		module->fixup_ports();
+		module_->fixup_ports();
 	}
 
 	virtual void execute(std::vector<std::string> args, Design *design) override
 	{
-
 		log_header(design, "Executing SDFF_CUT pass.\n");
 		log_push();
 
@@ -192,13 +226,16 @@ struct SDFFCutPass : public DifettoPass {
 			scanflops.insert(IdString(std::string("\\") + pair.second.string_value()));
 		}
 
-		std::string test_mode_wire_name = parsed_args["test_mode"].at(0);
-		std::string clock_wire_name = parsed_args["clock"].at(0);
 		pool<std::string> raw_exclusions{};
 		for (auto &el : parsed_args["exclude_io"]) {
 			raw_exclusions.insert(el);
 		}
 		auto exclusions = process_exclusions(raw_exclusions);
+
+		pool<IdString> macros;
+		for (const auto &macro_raw : parsed_args["macro"]) {
+			macros.insert("\\"s + macro_raw);
+		}
 
 		auto bsr_idstring = ID(_difetto_bsr);
 		if (design->modules_.count(bsr_idstring) == 0) {
@@ -206,7 +243,7 @@ struct SDFFCutPass : public DifettoPass {
 		}
 
 		for (auto module : design->selected_modules()) {
-			sdff_cut(design, module, test_mode_wire_name, clock_wire_name, exclusions, scanflops);
+			sdff_cut(design, module, macros, exclusions, scanflops);
 		}
 
 		Pass::call(design, "hierarchy");

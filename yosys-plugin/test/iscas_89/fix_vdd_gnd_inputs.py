@@ -27,5 +27,9 @@ if "\\GND" in ports:
     top.connect(ys.SigSpec(gnd), ys.SigSpec(lo_const))
 test_port = top.addWire(ys.IdString("\\test"))
 test_port.port_input = True
+if "\\CK" not in ports:
+    # combinational design, add clock port for consistency
+    clock_port = top.addWire(ys.IdString("\\CK"))
+    clock_port.port_input = True
 top.fixup_ports()
 d.run_pass("write_verilog", "-noattr", f"out/{os.path.basename(sys.argv[1])}/fixed.v")

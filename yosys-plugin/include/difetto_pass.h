@@ -5,6 +5,7 @@
 #include "kernel/yosys.h"
 #include <filesystem>
 #include <optional>
+using namespace std::literals::string_literals;
 
 struct DifettoPass : public Yosys::Pass {
 	struct Arg {
@@ -16,9 +17,15 @@ struct DifettoPass : public Yosys::Pass {
 
 	DifettoPass(std::string name, std::string short_help = "** document me **");
 
-	void resolve_wire(const std::string &target_wire_raw, Yosys::RTLIL::Module *module, Yosys::IdString &wire_id, Yosys::RTLIL::Wire *&wire,
-			  bool &inverted);
-	Yosys::dict<Yosys::RTLIL::IdString, bool> process_exclusions(const Yosys::pool<std::string> &raw_exclusions);
+	void resolve_signal(const std::string &target_signal,
+			    Yosys::IdString *container_id,	     // required
+			    Yosys::IdString *wire_port_id,	     // required
+			    bool *inverted,			     // required
+			    Yosys::RTLIL::Module *module_ = nullptr, // optional, can be nullptr
+			    Yosys::RTLIL::SigSpec *signal = nullptr  // required iff module_ is not null, otherwise can be nullptr
+	);
+	Yosys::dict<Yosys::RTLIL::IdString, Yosys::dict<Yosys::RTLIL::IdString, bool>>
+	process_exclusions(const Yosys::pool<std::string> &raw_exclusions);
 	void load_ibsr_definitions(Yosys::RTLIL::Design *design);
 
 	virtual const Yosys::dict<std::string, Arg> &get_args() = 0;

@@ -4,7 +4,7 @@ read_liberty -ignore_miss_func -lib $::env(TECH_DIR)/sky130/sky130_fd_sc_hd__tt_
 read_verilog -sv ./out/spm.nl.v
 hierarchy -top spm
 select spm
-yosys sdff_cut -json_mapping $::env(TECH_DIR)/sky130/sky130_mapping.json -test_mode test -clock clk -exclude_io rstn -exclude_io sce -exclude_io sci -exclude_io sco
+yosys sdff_cut -json_mapping $::env(TECH_DIR)/sky130/sky130_mapping.json -test_mode test -clock clk -exclude_io test -exclude_io clk -exclude_io !rstn -exclude_io sce -exclude_io sci -exclude_io sco
 write_verilog -selected -noexpr ./out/spm.cut.pre_opt.v
 opt_clean -purge
 hilomap -hicell sky130_fd_sc_hd__conb_1 HI -locell sky130_fd_sc_hd__conb_1 LO

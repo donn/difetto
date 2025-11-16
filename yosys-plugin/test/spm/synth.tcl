@@ -5,7 +5,7 @@ read_liberty -ignore_miss_func -lib $::env(TECH_DIR)/sky130/sky130_fd_sc_hd__tt_
 read_verilog -sv spm.v
 hierarchy -top spm
 flatten
-yosys boundary_scan -test_mode test -clock clk -exclude_io rstn -exclude_io sce -exclude_io sci -exclude_io sco
+yosys boundary_scan -test_mode test -clock clk -exclude_io test -exclude_io clk -exclude_io !rstn -exclude_io sce -exclude_io sci -exclude_io sco
 write_verilog -noexpr -noattr out/spm.bs.v
 synth -top spm
 dfflibmap -liberty $::env(TECH_DIR)/sky130/sky130_fd_sc_hd__tt_025C_1v80.lib

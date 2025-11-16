@@ -104,34 +104,76 @@ const dict<std::string, vector<std::string>> DifettoPass::parse_args(vector<std:
 	return result;
 }
 
-void DifettoPass::resolve_wire(const std::string &target_wire_raw, Yosys::RTLIL::Module *module, IdString &wire_id, Yosys::RTLIL::Wire *&wire,
-			       bool &inverted)
+void DifettoPass::resolve_signal(const std::string &target_signal, IdString *container_id, IdString *wire_port_id, bool *inverted,
+				 RTLIL::Module *module_, RTLIL::SigSpec *signal)
 {
-	const char *wire_name = target_wire_raw.c_str();
-	inverted = false;
-	if (wire_name[0] == '!') {
-		inverted = true;
-		wire_name++;
+	const char *target = target_signal.c_str();
+	const char *end = target + strlen(target);
+
+	// handle inversion
+	*inverted = false;
+	if (target != end && target[0] == '!') {
+		*inverted = true;
+		target++;
 	}
-	wire_id = IdString(std::string("\\") + wire_name);
-	if (module) {
-		if (module->wires_.count(wire_id) == 0) {
-			log_error("No wire %s found in module %s.\n", wire_id.c_str(), module->name.c_str());
+
+	// attempt to split over / (if found)
+	const char *found = target;
+	std::string top = "\0";
+	while (found != end && *found != '/') {
+		found++;
+	}
+	if (found != end) {
+		top = "\\"s + std::string(target, found);
+		target = found + 1;
+	}
+
+	*container_id = IdString(top);
+	*wire_port_id = IdString("\\"s + target);
+	if (!module_) {
+		return;
+	}
+
+	// resolve actual wire
+	if (container_id->empty()) {
+		// top-level
+		if (module_->wires_.count(*wire_port_id) == 0) {
+			log_error("No wire %s found in module %s.\n", wire_port_id->c_str(), module_->name.c_str());
 		}
-		wire = module->wires_[wire_id];
+		if (signal) {
+			*signal = SigSpec(module_->wires_[*wire_port_id]);
+		}
+	} else {
+		// submodule target
+		if (module_->cells_.count(*wire_port_id) == 0) {
+			log_error("No cell %s found in module %s.\n", container_id->c_str(), module_->name.c_str());
+		}
+		auto container = module_->cells_[*wire_port_id];
+		if (container->connections_.count(*wire_port_id) == 0) {
+			log_error("Cell %s has no connection on port %s.\n", container_id->c_str(), wire_port_id->c_str());
+		}
+		if (signal) {
+			*signal = container->connections_[*wire_port_id];
+		}
 	}
 }
 
-dict<IdString, bool> DifettoPass::process_exclusions(const pool<std::string> &raw_exclusions)
+dict<IdString, dict<IdString, bool>> DifettoPass::process_exclusions(const pool<std::string> &raw_exclusions)
 {
-	dict<IdString, bool> result;
+	dict<IdString, dict<IdString, bool>> result;
 	for (size_t i = 0; i < raw_exclusions.size(); i += 1) {
-		auto &wire = *raw_exclusions.element(i);
-		IdString id;
-		Wire *dont_care = nullptr;
+		auto &exclusion = *raw_exclusions.element(i);
+		IdString container, target;
 		bool inverted;
-		resolve_wire(wire, nullptr, id, dont_care, inverted);
-		result[id] = inverted;
+		resolve_signal(exclusion, &container, &target, &inverted);
+		result[container][target] = inverted;
+	}
+	log_debug("Processed exclusions:\n");
+	for (const auto &[module, exclusions] : result) {
+		log_debug("%s:\n", module.empty() ? "Top Module" : module.c_str());
+		for (const auto &[target, inverted] : exclusions) {
+			log_debug("\t%s%s\n", inverted ? "!" : "", target.c_str());
+		}
 	}
 	return result;
 }
