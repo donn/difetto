@@ -1,6 +1,11 @@
 from pathlib import Path
 
-import libyosys as ys
+from pyosys import libyosys as ys
+
+def _Design_run_pass(self, *command):
+    ys.Pass.call(self, list(command))
+
+ys.Design.run_pass = _Design_run_pass  # type: ignore
 
 __file_dir__= Path(__file__).absolute().parent
 

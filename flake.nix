@@ -23,6 +23,9 @@
         (pkgs': pkgs: let
           callPackage = lib.callPackageWith pkgs';
         in {
+          yosys = pkgs.yosys.overrideAttrs (attrs': attrs: {
+            patches = [./nix/yosys/5492.patch];
+          });
           openroad = pkgs.openroad.overrideAttrs (attrs': attrs: {
             patches =
               attrs.patches

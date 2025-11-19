@@ -93,7 +93,7 @@ dft_pin_vars = [
     Variable(
         "DFT_BSCAN_EXCLUDE_IO",
         Optional[List[str]],
-        "Names of pins on the DFT top module to exclude boundary scan registers for. You must explicitly list the test mode and scan pins.",
+        "Names of pins to exclude boundary scan registers for. You must explicitly list the test mode and scan pins. You can also specify macro pins in the format '<macro_instance_name>/<macro_pin_name>'",
     ),
 ]
 

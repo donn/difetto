@@ -10,7 +10,7 @@ from bitarray import bitarray
 import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import HierarchyObject
-from cocotb.runner import get_runner
+from cocotb_tools.runner import get_runner
 
 from scan_chain import run_scan
 
