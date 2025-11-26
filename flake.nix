@@ -84,9 +84,8 @@
         }) {};
         dev = callPackage (librelane.createOpenLaneShell {
           extra-packages = [pkgs.quaigh pkgs.python3.pkgs.nl2bench];
+          extra-python-packages = ps: with ps; [pytest cocotb bitarray marshmallow-dataclass];
           librelane-extra-python-interpreter-packages = ps: with ps; [bitarray marshmallow-dataclass];
-          include-librelane = false;
-          librelane-plugins = ps: with ps; [librelane-plugin-difetto];
         }) {};
       }
     );

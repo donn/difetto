@@ -9,7 +9,7 @@ ys.run_pass(f"select top", d)
 ys.run_pass(f"sdff_cut -json_mapping {mapping} " + signal_flags, d)
 ys.run_pass(f"write_verilog top.cut.pre_opt.v", d)
 ys.run_pass(f"opt_clean -purge", d)
-ys.run_pass(f"hilomap -hicell sky130_fd_sc_hd__conb_1 HI -locell sky130_fd_sc_hd__conb_1 LO", d)
+ys.run_pass(
+    f"hilomap -hicell sky130_fd_sc_hd__conb_1 HI -locell sky130_fd_sc_hd__conb_1 LO", d
+)
 ys.run_pass(f"write_verilog -selected -noexpr top.cut.v", d)
-
-

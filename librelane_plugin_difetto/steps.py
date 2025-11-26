@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Mohamed Gaber
 import os
+import re
 import subprocess
+from decimal import Decimal
 from abc import abstractmethod
 from librelane.steps import Step, StepException
 from librelane.steps.tclstep import TclStep
@@ -269,7 +271,16 @@ class QuaighATPG(Step):
             str(state_in[DesignFormat.bench]),
         ]
         self.run_subprocess(cmd)
-        return {DesignFormat.raw_tvs: Path(out_path)}, {}
+        metric_updates = {}
+
+        coverage_rx = re.compile(r"([\d.]+)% coverage")
+        with open(self.get_log_path(), encoding="utf8") as f:
+            for line in f:
+                if match := coverage_rx.search(line):
+                    metric_updates["design__atpg__coverage"] = Decimal(match[1])
+                    break
+
+        return {DesignFormat.raw_tvs: Path(out_path)}, metric_updates
 
 
 DesignFormat(

@@ -2,12 +2,14 @@ from pathlib import Path
 
 from pyosys import libyosys as ys
 
+
 def _Design_run_pass(self, *command):
     ys.Pass.call(self, list(command))
 
+
 ys.Design.run_pass = _Design_run_pass  # type: ignore
 
-__file_dir__= Path(__file__).absolute().parent
+__file_dir__ = Path(__file__).absolute().parent
 
 difetto = __file_dir__.parents[1] / "difetto.so"
 tech = __file_dir__.parent / "tech" / "sky130"

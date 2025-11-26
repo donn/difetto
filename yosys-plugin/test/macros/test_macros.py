@@ -21,15 +21,20 @@ def run(test, title, *args):
     )
     return out_log_path
 
+
 def test_macros():
     run("macros", "synth", "yosys", "-gy", cwd / "synth.py")
     run("macros", "cut", "yosys", "-gy", cwd / "cut.py")
-    run("macros", "bench", "nl2bench", "-l",
+    run(
+        "macros",
+        "bench",
+        "nl2bench",
+        "-l",
         pytest.test_root / "tech" / "sky130" / "sky130_fd_sc_hd__tt_025C_1v80.lib",
         "--msb-first",
         "-o",
         cwd / "out" / "macros" / "top.bench",
-        cwd / "out" / "macros" /  "top.cut.v",
+        cwd / "out" / "macros" / "top.cut.v",
     )
     atpg_result = run(
         "macros",
@@ -37,8 +42,8 @@ def test_macros():
         "quaigh",
         "atpg",
         "-o",
-        cwd / "out" / "macros" /  "top.raw_tvs.txt",
-        cwd / "out" / "macros" /  "top.bench",
+        cwd / "out" / "macros" / "top.raw_tvs.txt",
+        cwd / "out" / "macros" / "top.bench",
     )
     atpg_result_str = open(atpg_result).read()
     coverage_rx = re.compile(r"([\d.]+)% coverage")
