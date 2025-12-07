@@ -16,8 +16,7 @@ It uses [OpenROAD](https://github.com/The-OpenROAD-Project/OpenROAD),
 [Quaigh](https://github.com/coloquinte/quaigh),
 [cocotb](https://github.com/cocotb/cocotb), a custom
 [Yosys](https://github.com/yosyshq/yosys) plugin, custom methodology scripts,
-and a custom  OpenDB-based script all for the implementation of test-enabled
-ASIC circuits.
+all for the implementation of test-enabled ASIC circuits.
 
 ## Yosys Plugin
 
@@ -30,14 +29,18 @@ You will need Nix installed as per the LibreLane documentation.
 `nix develop` will drop you into an environment where both LibreLane, Difetto
 and all requisite plugins are installed.
 
-The plugin provides three flows:
+The plugin implements using three flows:
 
-* `DifettoPNR`: Modified classic flow to handle chain insertion
+* `DifettoPNR`: Modified Classic flow to handle chain insertion
 * `DifettoATPG`: Using data available after `Difetto.Cut` in `Difetto.PNR`,
   performs ATPG for a given chip.
 * `DifettoTest`: Using data from `DifettoATPG` and `Difetto.PNR`'s
   `Difetto.Chain`, verify the integrity of the scan chain and run test vectors
   to ensure everything is A-OK.
+
+The three flows amend the LibreLane Classic flow as follows:
+
+![A flow diagram showing how Difetto amends the LibreLane Classic flow to add DFT features.](./difetto_simple.svg)
 
 While this three-flow approach may be inconvenient to some, it allows engineers
 to tackle ATPG and Testing, both very time consuming, in parallel with routing.
