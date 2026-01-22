@@ -2,7 +2,7 @@
   inputs = {
     librelane.url = "github:librelane/librelane/donn/yosys_plugin_tweaks";
     nl2bench = {
-      url = "github:donn/nl2bench";
+      url = "github:donn/nl2bench/nixos_25.11";
       inputs.nix-eda.follows = "librelane/nix-eda";
     };
   };
@@ -23,9 +23,6 @@
         (pkgs': pkgs: let
           callPackage = lib.callPackageWith pkgs';
         in {
-          yosys = pkgs.yosys.overrideAttrs (attrs': attrs: {
-            patches = [./nix/yosys/5492.patch];
-          });
           openroad = pkgs.openroad.overrideAttrs (attrs': attrs: {
             patches =
               attrs.patches
@@ -75,14 +72,13 @@
     devShells = nix-eda.forAllSystems (
       system: let
         pkgs = self.legacyPackages."${system}";
-        callPackage = lib.callPackageWith (pkgs // pkgs.python3.pkgs);
       in {
-        default = callPackage (librelane.createOpenLaneShell {
+        default = pkgs.callPackage (pkgs.createLibreLaneShell {
           extra-packages = [pkgs.quaigh pkgs.python3.pkgs.nl2bench];
           librelane-extra-python-interpreter-packages = ps: with ps; [bitarray marshmallow-dataclass];
           librelane-plugins = ps: with ps; [librelane-plugin-difetto];
         }) {};
-        dev = callPackage (librelane.createOpenLaneShell {
+        dev = pkgs.callPackage (pkgs.createLibreLaneShell {
           extra-packages = [pkgs.quaigh pkgs.python3.pkgs.nl2bench];
           extra-python-packages = ps: with ps; [pytest cocotb bitarray marshmallow-dataclass];
           librelane-extra-python-interpreter-packages = ps: with ps; [bitarray marshmallow-dataclass];

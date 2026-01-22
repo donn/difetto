@@ -44,7 +44,7 @@ async def run_scan(
         await RisingEdge(tck)
         scan_out_reg[i] = int(sco.value)
 
-    out = bitarray(scan_out_reg.binstr) & mask
+    out = bitarray(str(scan_out_reg)) & mask
     diff = au ^ out
     if diff_file is not None:
         print("&", mask.to01(), file=diff_file)

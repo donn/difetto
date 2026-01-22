@@ -2,19 +2,24 @@
 # Copyright (c) 2025 Mohamed Gaber
 import os
 import re
+import math
 import subprocess
 from decimal import Decimal
 from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+from typing import ClassVar, List, Literal, Optional, Set
+
+from .scripts.common.patterns import read_patterns_bin
+
 from librelane.steps import Step, StepException
 from librelane.steps.tclstep import TclStep
 from librelane.steps.pyosys import PyosysStep
 from librelane.steps.openroad import OpenROADStep
 from librelane.state import DesignFormat
 from librelane.config import Variable
-from librelane.common import Path, get_script_dir, process_list_file
+from librelane.common import Path, get_script_dir, process_list_file, mkdirp
 from librelane.logging import warn
 
-from typing import ClassVar, List, Literal, Optional, Set
 
 __file_dir__ = os.path.dirname(os.path.abspath(__file__))
 
@@ -414,6 +419,7 @@ class CocotbStep(Step):
     def run(self, state_in, **kwargs):
         command = self.get_command(state_in)
         kwargs, env = self.extract_env(kwargs)
+        env["SIM_BUILD"] = os.path.join(self.step_dir, "sim_build")
         subprocess_result = self.run_subprocess(
             command,
             **kwargs,
@@ -544,7 +550,17 @@ class SimulateTestVectors(CocotbStep):
 
     inputs = CocotbStep.inputs + [DesignFormat.au, DesignFormat.tvs, DesignFormat.mask]
 
-    config_vars = CocotbStep.config_vars + dft_pin_vars
+    config_vars = (
+        CocotbStep.config_vars
+        + dft_pin_vars
+        + [
+            Variable(
+                "DFT_TV_TEST_THREADS",
+                Optional[int],
+                "Specifies the number of threads to be used for verifying test vectors. If unset, this will be equal to your machine's thread count.",
+            )
+        ]
+    )
 
     def get_command(self, state_in):
         return super().get_command(state_in) + [
@@ -559,3 +575,56 @@ class SimulateTestVectors(CocotbStep):
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "cocotb", "run_tvs.py")
+
+    def run_batch(self, state_in, batch_dir, batch_from: int, batch_to: int, **kwargs):
+        kwargs, env = self.extract_env(kwargs)
+
+        log_path = os.path.join(batch_dir, "sim.log")
+
+        env["SIM_BUILD"] = os.path.join(batch_dir, "sim_build")
+
+        subprocess_result = self.run_subprocess(
+            self.get_command(state_in)
+            + ["--batch-from", str(batch_from), "--batch-to", str(batch_to)],
+            log_to=log_path,
+            silent=True,
+            report_dir=batch_dir,
+            env=env,
+            **kwargs,
+        )
+
+        return subprocess_result["generated_metrics"]
+
+    def run(self, state_in, **kwargs):
+        threads = int(self.config["DFT_TV_TEST_THREADS"] or os.cpu_count() or 1)
+
+        if threads == 1:
+            return super().run(state_in, **kwargs)
+
+        tpe = ThreadPoolExecutor(max_workers=threads)
+
+        tv_count = sum(
+            1 for _ in read_patterns_bin(open(state_in[DesignFormat.tvs], "rb"))
+        )
+        tvs_per_thread = math.ceil(tv_count / threads)
+        tvs_submitted = 0
+
+        futures = {}
+        while tvs_submitted < tv_count:
+            batch_from = tvs_submitted
+            batch_to = tvs_submitted + tvs_per_thread - 1
+            if batch_to >= tv_count:
+                batch_to = tv_count - 1
+            tvs_submitted += batch_to - batch_from + 1
+            batch_name = f"batch_{batch_from}_{batch_to}"
+            batch_dir = os.path.join(self.step_dir, batch_name)
+            mkdirp(batch_dir)
+            futures[batch_name] = tpe.submit(
+                self.run_batch, state_in, batch_dir, batch_from, batch_to
+            )
+
+        metrics_updates = {}
+        for future in futures.values():
+            metrics_updates.update(future.result())
+
+        return {}, metrics_updates

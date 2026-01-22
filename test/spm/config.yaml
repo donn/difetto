@@ -28,6 +28,7 @@ pdk::sky130*:
   CLOCK_PERIOD: 8
 
 # DFT
+DFT_TV_TEST_THREADS: 1 # like 10 test vectors total; parallelization is a penalty
 DFT_TEST_MODE_WIRE: tm
 DFT_TEST_CLOCK_WIRE: clk
 DFT_SCAN_IN_PATTERN: sci
@@ -37,7 +38,7 @@ DFT_JSON_MAPPING: dir::sky130_mapping.json
 DFT_BSCAN_EXCLUDE_IO:
   - clk
   - tm
-  - rst
+  - "!rst"
   - sce
   - sci
   - sco
