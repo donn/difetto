@@ -61,7 +61,7 @@ async def chain_test(dut: HierarchyObject):
 
     if excluded := config["DFT_BSCAN_EXCLUDE_IO"]:
         for io in excluded:
-            value_to_coerce = 1
+            value_to_coerce = 0
             if io.startswith("!"):
                 value_to_coerce ^= 1
                 io = io[1:]
@@ -121,15 +121,16 @@ if __name__ == "__main__":
     def main(step_dir, config, chain_yml, sources):
         config_dict = json.load(open(config, encoding="utf8"))
         runner = get_runner(config_dict["DFT_COCOTB_SIM"])
-        print("%OL_CREATE_REPORT compile.rpt")
+        print("%OL_CREATE_REPORT compile.rpt", flush=True)
         runner.build(
             sources=sources,
             defines={"FUNCTIONAL": True},
             hdl_toplevel=config_dict["DESIGN_NAME"],
             always=True,
             waves=True,
+            build_dir=os.getenv("SIM_BUILD", "sim_build"),
         )
-        print("%OL_END_REPORT")
+        print("%OL_END_REPORT", flush=True)
         runner.test(
             hdl_toplevel=config_dict["DESIGN_NAME"],
             test_module="validate_chain,",

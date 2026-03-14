@@ -13,6 +13,10 @@ class DifettoPNR(Flow.factory.get("Classic")):
         ("+Difetto.Resynthesis", "Difetto.ScanReplace"),
         ("+Difetto.ScanReplace", "Difetto.Cut"),
         ("-OpenROAD.CTS", "Difetto.Chain"),
+        (
+            "+Difetto.Chain",
+            "OpenROAD.RepairDesign",
+        ),  # SCE has |scannable_element_count| fanout
     ]
 
 

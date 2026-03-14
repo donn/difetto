@@ -21,6 +21,9 @@ from patterns import read_patterns_bin
 async def chain_test(dut: HierarchyObject):
     """Test that the chain is valid"""
 
+    batch_from = int(os.environ["BATCH_FROM"])
+    batch_to = int(os.environ["BATCH_TO"])
+
     config_json = os.environ["STEP_CONFIG"]
 
     with open(config_json, encoding="utf8") as f:
@@ -45,7 +48,7 @@ async def chain_test(dut: HierarchyObject):
 
     if excluded := config["DFT_BSCAN_EXCLUDE_IO"]:
         for io in excluded:
-            value_to_coerce = 1
+            value_to_coerce = 0
             if io.startswith("!"):
                 value_to_coerce ^= 1
                 io = io[1:]
@@ -64,6 +67,8 @@ async def chain_test(dut: HierarchyObject):
         for i, (tv, au) in enumerate(
             zip(read_patterns_bin(tvs_f), read_patterns_bin(au_f))
         ):
+            if i < batch_from or (batch_to != -1 and i > batch_to):
+                continue
             cocotb.log.info(f"Running test vector {i}…")
             with open(diff_dir / f"tv_{i}.log", "w", encoding="utf8") as diff_f:
                 diff = await run_scan(
@@ -129,29 +134,45 @@ if __name__ == "__main__":
         required=True,
         type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
     )
+    @click.option(
+        "--batch-from",
+        required=False,
+        type=int,
+        default=0,
+    )
+    @click.option(
+        "--batch-to",
+        required=False,
+        type=int,
+        default=-1,
+    )
     @click.argument("sources", nargs=-1)
-    def main(step_dir, config, au, tvs, mask, sources):
+    def main(step_dir, config, au, tvs, mask, sources, batch_from, batch_to):
         config_dict = json.load(open(config, encoding="utf8"))
         runner = get_runner(config_dict["DFT_COCOTB_SIM"])
-        print("%OL_CREATE_REPORT compile.rpt")
+        print("%OL_CREATE_REPORT compile.rpt", flush=True)
         runner.build(
             sources=sources,
             defines={"FUNCTIONAL": True},
             hdl_toplevel=config_dict["DESIGN_NAME"],
             always=True,
             waves=True,
+            build_dir=os.getenv("SIM_BUILD", "sim_build"),
         )
-        print("%OL_END_REPORT")
+        print("%OL_END_REPORT", flush=True)
+        extra_env = {
+            "CURRENT_AU": au,
+            "CURRENT_TVS": tvs,
+            "CURRENT_MASK": mask,
+            "STEP_CONFIG": config,
+            "STEP_DIR": step_dir,
+            "BATCH_FROM": str(batch_from),
+            "BATCH_TO": str(batch_to),
+        }
         runner.test(
             hdl_toplevel=config_dict["DESIGN_NAME"],
             test_module="run_tvs,",
-            extra_env={
-                "CURRENT_AU": au,
-                "CURRENT_TVS": tvs,
-                "CURRENT_MASK": mask,
-                "STEP_CONFIG": config,
-                "STEP_DIR": step_dir,
-            },
+            extra_env=extra_env,
             waves=True,
         )
 

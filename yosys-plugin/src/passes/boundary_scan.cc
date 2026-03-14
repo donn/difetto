@@ -97,6 +97,7 @@ struct BoundaryScanPass : public DifettoPass {
 			bsr->setPort(ID(Q), resolved_input);
 			bsr->setPort(ID(CLK), clock_signal);
 			bsr->setPort(ID(TEST), test_mode_signal);
+			bsr->set_bool_attribute(ID(keep), true);
 		}
 
 		for (auto output : outputs) {
