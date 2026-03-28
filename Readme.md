@@ -67,12 +67,11 @@ python3 -m librelane ./test/spm/config.yaml --run-tag test --flow DifettoTest --
 
 # Current Limitations
 
-* Compatible with a certain LibreLane WIP branch, not upstream.
 * No support for a different "test" SDC for chain and signoff
 * Only confirmed to work with the Google/Skywater 130nm PDK
 * Requires an explicit tech mapping file — automatic scan cell identification
   not supported.
-* There is currently no support for Macros.
+* Macro support is currently limited and untested.
 * Variable names are not final.
 
 # License

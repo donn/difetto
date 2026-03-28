@@ -31,7 +31,7 @@ def run(test, title, *args):
 def test_iscas_89_design(test):
     if test == "s1488.v":
         pytest.xfail()
-    run(test, "fixup", "yosys", "-y", "fix_vdd_gnd_inputs.py", "--", test)
+    run(test, "fixup", "yosys", "-y", "fix_vdd_gnd_inputs.py", "--", cwd / "rtl" / test, cwd / "out" / test / "fixed.v")
     run(test, "synth", "yosys", "-c", cwd / "synth.tcl")
     run(test, "cut", "yosys", "-c", cwd / "cut.tcl")
     run(
@@ -59,3 +59,4 @@ def test_iscas_89_design(test):
     atpg_result = coverage_rx.search(atpg_result_str)
     assert atpg_result is not None, "No coverage found"
     coverage = float(atpg_result[1])
+    assert coverage > 0, "zero coverage"

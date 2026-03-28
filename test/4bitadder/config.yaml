@@ -1,5 +1,5 @@
 # Basics
-DESIGN_NAME: spm
+DESIGN_NAME: _4bitadder
 VERILOG_FILES: dir::src/*.v
 CLOCK_PERIOD: 10
 CLOCK_PORT: clk
@@ -19,9 +19,6 @@ PDN_VPITCH: 30
 PDN_HPITCH: 30
 PDN_SKIPTRIM: true
 
-# Pin Order
-IO_PIN_ORDER_CFG: dir::pin_order.cfg
-
 # Technology-Specific Configs
 pdk::sky130*:
   FP_CORE_UTIL: 45
@@ -38,7 +35,7 @@ DFT_JSON_MAPPING: dir::../sky130_mapping.json
 DFT_BSCAN_EXCLUDE_IO:
   - clk
   - tm
-  - "!rst"
+  - "!rstn"
   - sce
   - sci
   - sco

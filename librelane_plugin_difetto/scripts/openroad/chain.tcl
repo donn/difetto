@@ -41,7 +41,7 @@ puts $yaml_out "    - insts:"
             set insts [$list getScanInsts]
             set last_clk "\$"
             set last_edge "\$"
-            foreach inst $insts {
+            foreach inst [lreverse $insts] {
                 set current_clk [$inst getScanClock]
                 set current_edge [$inst getClockEdge]
                 if { "$last_clk" != "$current_clk" || "$last_edge" != "$current_edge" } {

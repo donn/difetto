@@ -5,7 +5,7 @@ read_liberty -ignore_miss_func -lib $::env(TECH_DIR)/sky130/sky130_fd_sc_hd__tt_
 read_verilog -sv out/$::env(TEST)/fixed.v
 hierarchy -auto-top
 flatten
-yosys boundary_scan -test_mode test -clock CK -exclude_io test -exclude_io CK -exclude_io reset
+yosys boundary_scan -test_mode tm -clock CK -exclude_io tm -exclude_io CK -exclude_io reset -exclude_io sci -exclude_io sce -exclude_io sco
 write_verilog -noexpr -noattr out/$::env(TEST)/post_bs.v
 synth
 dfflibmap -liberty $::env(TECH_DIR)/sky130/sky130_fd_sc_hd__tt_025C_1v80.lib

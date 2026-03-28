@@ -1,6 +1,6 @@
 {
   inputs = {
-    librelane.url = "github:librelane/librelane/dev";
+    librelane.url = "github:librelane/librelane";
     nl2bench = {
       url = "github:donn/nl2bench/nixos_25.11";
       inputs.nix-eda.follows = "librelane/nix-eda";
@@ -34,7 +34,19 @@
             src = self;
           };
           nl2bench = pypkgs.nl2bench.overridePythonAttrs (attrs: {
-            nativeBuildInputs = attrs.nativeBuildInputs ++ [ pypkgs.pythonRelaxDepsHook ];
+            # i die of old age every time i wait for openjdk just to run antlr
+            format = "wheel";
+            src = pkgs'.fetchPypi {
+              pname = "nl2bench";
+              inherit (attrs) version;
+              format = "wheel";
+              dist = "py3";
+              python = "py3";
+              sha256 = "sha256-3qqJdbyxn1r49j+B2/w6rMsuxMdiw2KkfVl5XsTSeDo=";
+            };
+            doCheck = false;
+            preBuild = "";
+            nativeBuildInputs = with pypkgs'; [ poetry-core pythonRelaxDepsHook ];
             pythonRelaxDeps = [ "pyosys" ];
           });
           cocotb = pypkgs.cocotb.overridePythonAttrs {

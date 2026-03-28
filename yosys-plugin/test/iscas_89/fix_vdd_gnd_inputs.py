@@ -10,7 +10,7 @@ def _Design_run_pass(self, *command):
 ys.Design.run_pass = _Design_run_pass  # type: ignore
 
 d = ys.Design()
-d.run_pass("read_verilog", "-sv", f"rtl/{sys.argv[1]}")
+d.run_pass("read_verilog", "-sv", sys.argv[1])
 d.run_pass("hierarchy", "-auto-top")
 d.run_pass("proc")
 top = d.top_module()
@@ -25,11 +25,19 @@ if "\\GND" in ports:
     gnd.port_input = False
     lo_const = ys.Const(ys.State.S0, 1)
     top.connect(ys.SigSpec(gnd), ys.SigSpec(lo_const))
-test_port = top.addWire(ys.IdString("\\test"))
-test_port.port_input = True
 if "\\CK" not in ports:
     # combinational design, add clock port for consistency
     clock_port = top.addWire(ys.IdString("\\CK"))
     clock_port.port_input = True
+if "\\reset" not in ports:
+    # add reset
+    reset_port = top.addWire(ys.IdString("\\reset"))
+    reset_port.port_input = True
+for dft_port in ["\\tm", "\\sci", "\\sce", "\\sco"]:
+    wire = top.addWire(dft_port)
+    if dft_port == "\\sco":
+        wire.port_output = True
+    else:
+        wire.port_input = True
 top.fixup_ports()
-d.run_pass("write_verilog", "-noattr", f"out/{os.path.basename(sys.argv[1])}/fixed.v")
+d.run_pass("write_verilog", "-noattr", sys.argv[2])

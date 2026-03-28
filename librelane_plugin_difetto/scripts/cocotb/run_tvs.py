@@ -44,7 +44,7 @@ async def chain_test(dut: HierarchyObject):
     sco = getattr(dut, sco_s)
     sce = getattr(dut, sce_s)
 
-    test_clock = Clock(tck, 10, units="us")
+    test_clock = Clock(tck, 10, unit="us")
 
     if excluded := config["DFT_BSCAN_EXCLUDE_IO"]:
         for io in excluded:
