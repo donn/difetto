@@ -349,7 +349,14 @@ class Chain(OpenROADStep):
 
     outputs = OpenROADStep.outputs + [DesignFormat.chain_yml]
 
-    config_vars = OpenROADStep.config_vars + dft_common_vars + dft_pin_vars
+    config_vars = OpenROADStep.config_vars + dft_common_vars + dft_pin_vars + [
+        Variable(
+            "DFT_SCAN_OPT",
+            bool,
+            "Enable scan-chain optimization which will improve total wire length but may take time.",
+            default=True,
+        )
+    ]
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "openroad", "chain.tcl")

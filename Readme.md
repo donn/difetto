@@ -77,3 +77,5 @@ python3 -m librelane ./test/spm/config.yaml --run-tag test --flow DifettoTest --
 # License
 
 The Apache License, version 2.0. See 'License'.
+
+Some files may be available under different licenses according to their headers.
