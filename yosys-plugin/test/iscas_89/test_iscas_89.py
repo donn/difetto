@@ -31,7 +31,16 @@ def run(test, title, *args):
 def test_iscas_89_design(test):
     if test == "s1488.v":
         pytest.xfail()
-    run(test, "fixup", "yosys", "-y", "fix_vdd_gnd_inputs.py", "--", cwd / "rtl" / test, cwd / "out" / test / "fixed.v")
+    run(
+        test,
+        "fixup",
+        "yosys",
+        "-y",
+        "fix_vdd_gnd_inputs.py",
+        "--",
+        cwd / "rtl" / test,
+        cwd / "out" / test / "fixed.v",
+    )
     run(test, "synth", "yosys", "-c", cwd / "synth.tcl")
     run(test, "cut", "yosys", "-c", cwd / "cut.tcl")
     run(

@@ -61,9 +61,10 @@ async def chain_test(dut: HierarchyObject):
     diff_dir.mkdir(parents=True, exist_ok=True)
 
     bad_values = 0
-    with open(os.environ["CURRENT_TVS"], "rb") as tvs_f, open(
-        os.environ["CURRENT_AU"], "rb"
-    ) as au_f:
+    with (
+        open(os.environ["CURRENT_TVS"], "rb") as tvs_f,
+        open(os.environ["CURRENT_AU"], "rb") as au_f,
+    ):
         for i, (tv, au) in enumerate(
             zip(read_patterns_bin(tvs_f), read_patterns_bin(au_f))
         ):

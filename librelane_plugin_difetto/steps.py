@@ -166,6 +166,41 @@ class BoundaryScan(DFTCommon):
         return os.path.join(__file_dir__, "scripts", "pyosys", "boundary_scan.py")
 
 
+DesignFormat(
+    "chain_yml",
+    "chain.yml",
+    "Scan Chains (YAML format)",
+).register()
+
+
+@Step.factory.register()
+class TopologicalChain(DFTCommon):
+    """
+    Chains all flip-flops by declaration order,
+    `Fault <https://github.com/AUCOHL/Fault>`_\-style.
+
+    For benchmarking.
+    """
+
+    id = "Difetto.TopologicalChain"
+
+    outputs = DFTCommon.outputs + [DesignFormat.chain_yml]
+
+    config_vars = DFTCommon.config_vars + dft_pin_vars
+
+    def get_command(self, state_in) -> List[str]:
+        out_type = self.outputs[-1]
+        out_file = os.path.join(
+            self.step_dir,
+            f"{self.config['DESIGN_NAME']}.{out_type.extension}",
+        )
+        cmd = super().get_command(state_in)
+        return cmd + ["--chain-out", out_file]
+
+    def get_script_path(self):
+        return os.path.join(__file_dir__, "scripts", "pyosys", "topological_chain.py")
+
+
 @Step.factory.register()
 class ScanReplace(DFTCommon):
     """
@@ -327,13 +362,6 @@ class QuaighSim(Step):
         return {DesignFormat.raw_au: Path(out_path)}, {}
 
 
-DesignFormat(
-    "chain_yml",
-    "chain.yml",
-    "Scan Chains (YAML format)",
-).register()
-
-
 @Step.factory.register()
 class Chain(OpenROADStep):
     """
@@ -349,14 +377,19 @@ class Chain(OpenROADStep):
 
     outputs = OpenROADStep.outputs + [DesignFormat.chain_yml]
 
-    config_vars = OpenROADStep.config_vars + dft_common_vars + dft_pin_vars + [
-        Variable(
-            "DFT_SCAN_OPT",
-            bool,
-            "Enable scan-chain optimization which will improve total wire length but may take time.",
-            default=True,
-        )
-    ]
+    config_vars = (
+        OpenROADStep.config_vars
+        + dft_common_vars
+        + dft_pin_vars
+        + [
+            Variable(
+                "DFT_SCAN_OPT",
+                bool,
+                "Enable scan-chain optimization which will improve total wire length but may take time.",
+                default=True,
+            )
+        ]
+    )
 
     def get_script_path(self):
         return os.path.join(__file_dir__, "scripts", "openroad", "chain.tcl")

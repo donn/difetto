@@ -1,9 +1,15 @@
-DESIGN_NAME: picorv32
-VERILOG_FILES: dir::picorv32.v
-CLOCK_PORT: clk
-CLOCK_PERIOD: 24
+DESIGN_NAME: chip_core
+CLOCK_PORT: clk60
+CLOCK_PERIOD: 16.6
+VERILOG_FILES:
+  - dir::arb.sv
+  - dir::chip_core.sv
+  - dir::board.sv
+  - dir::usb.v
+  - dir::square.sv
 FP_CORE_UTIL: 60
-SYNTH_WRITE_NOATTR: false
+SYNTH_WRITE_NOATTR: False
+ERROR_ON_NL_ASSIGN_STATEMENTS: False
 
 # We want the results RAW
 RUN_POST_CTS_RESIZER_TIMING: false
@@ -11,17 +17,16 @@ RUN_POST_GRT_RESIZER_TIMING: false
 DRT_THREADS: 1
 DRT_ANTENNA_REPAIR_ITERS: 0
 
-# DFT
 DFT_TEST_MODE_WIRE: tm
-DFT_TEST_CLOCK_WIRE: clk
+DFT_TEST_CLOCK_WIRE: clk60
 DFT_SCAN_IN_PATTERN: sci
 DFT_SCAN_OUT_PATTERN: sco
 DFT_SCAN_ENABLE_PATTERN: sce
 DFT_JSON_MAPPING: dir::../sky130_mapping.json
 DFT_BSCAN_EXCLUDE_IO:
-  - clk
+  - clk60
   - tm
-  - "!resetn"
+  - "!rst_ext_n"
   - sce
   - sci
   - sco

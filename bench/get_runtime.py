@@ -11,5 +11,5 @@ print("step_dir,time")
 for step in sorted(run.glob("*/runtime.txt")):
     step_time = open(step).read()
     print(f"{step.parent.stem},{step_time}")
-    total += (datetime.strptime(step_time, "%H:%M:%S.%f") - zero_time)
+    total += datetime.strptime(step_time, "%H:%M:%S.%f") - zero_time
 print(f"sum,{total}")

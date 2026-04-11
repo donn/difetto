@@ -99,10 +99,13 @@ def assemble(tvs_out, au_out, mask_out, raw_tvs, raw_au, chain_yml, config_in, i
         mask[loc] = 1
         au_assembly_locations.append(loc)
 
-    with open(
-        raw_tvs,
-        encoding="utf8",
-    ) as tv_in_f, open(tvs_out, "wb") as tv_out_f:
+    with (
+        open(
+            raw_tvs,
+            encoding="utf8",
+        ) as tv_in_f,
+        open(tvs_out, "wb") as tv_out_f,
+    ):
         for tv in read_patterns_text(tv_in_f):
             assembled = bitarray.bitarray("0" * chain_length, endian="little")
             for value, location in zip(tv, tv_assembly_locations):
@@ -119,10 +122,13 @@ def assemble(tvs_out, au_out, mask_out, raw_tvs, raw_au, chain_yml, config_in, i
     ) as mask_out_f:
         write_pattern_bin(mask_out_f, mask)
 
-    with open(
-        raw_au,
-        encoding="utf8",
-    ) as au_in_f, open(au_out, "wb") as au_out_f:
+    with (
+        open(
+            raw_au,
+            encoding="utf8",
+        ) as au_in_f,
+        open(au_out, "wb") as au_out_f,
+    ):
         for au in read_patterns_text(au_in_f):
             assembled = bitarray.bitarray("0" * chain_length, endian="little")
             for value, location in zip(au, au_assembly_locations):

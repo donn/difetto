@@ -21,6 +21,28 @@ class DifettoPNR(Flow.factory.get("Classic")):
 
 
 @Flow.factory.register()
+class DifettoPNRNoChain(DifettoPNR):
+    """
+    For benchmarking
+    """
+
+    Substitutions = [
+        ("Difetto.Chain", None),
+        ("OpenROAD.RepairDesign", None),
+        ("Checker.DisconnectedPins", None),
+    ]
+
+
+@Flow.factory.register()
+class DifettoPNRTopologicalChain(DifettoPNRNoChain):
+    """
+    For benchmarking
+    """
+
+    Substitutions = [("+Difetto.Cut", "Difetto.TopologicalChain")]
+
+
+@Flow.factory.register()
 class DifettoATPG(SequentialFlow):
     Steps = [Difetto.WriteBench, Difetto.QuaighATPG, Difetto.QuaighSim]
 

@@ -76,4 +76,7 @@ set yaml_out [open "$::env(STEP_DIR)/$::env(DESIGN_NAME).chain.yml" "w"]
 write_chain_yml $yaml_out
 close $yaml_out
 
+puts "\[INFO\] Improving placement..."
+improve_placement -max_displacement 50
+
 write_views
