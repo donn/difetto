@@ -42,6 +42,23 @@ class Synthesis(Step.factory.get("Yosys.Synthesis")):
 
 
 @Step.factory.register()
+class Synthesis(Step.factory.get("Yosys.VHDLSynthesis")):
+    """
+    This is a one-for-one copy of ``Yosys.VHDLSynthesis`` with one change:
+    ``SYNTH_WRITE_NOATTR`` throws a step exception. That's it.
+    """
+
+    id = "Difetto.VHDLSynthesis"
+
+    def run(self, *args, **kwargs):
+        if self.config["SYNTH_WRITE_NOATTR"]:
+            raise StepException(
+                "'SYNTH_WRITE_NOATTR' is not compatible with DFT flows. Please set it to 'false'."
+            )
+        return super().run(*args, **kwargs)
+
+
+@Step.factory.register()
 class Resynthesis(Step.factory.get("Yosys.Resynthesis")):
     """
     This is a one-for-one copy of ``Yosys.Resynthesis`` with one change:

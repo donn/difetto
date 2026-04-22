@@ -1,16 +1,24 @@
-DESIGN_NAME: picorv32
-VERILOG_FILES: dir::picorv32.v
+# Basics
+DESIGN_NAME: aes_256
+VERILOG_FILES:
+- dir::round.v
+- dir::table.v
+- dir::top.v
+CLOCK_PERIOD: 5
 CLOCK_PORT: clk
-CLOCK_PERIOD: 24
 FP_CORE_UTIL: 50
+
+# Synthesis
 SYNTH_WRITE_NOATTR: false
+ERROR_ON_SYNTH_CHECKS: false
 
 # We want the results RAW
 RUN_POST_CTS_RESIZER_TIMING: false
 RUN_POST_GRT_RESIZER_TIMING: false
-DRT_THREADS: 4  # <- ok i just dont want to die of old age
+DRT_THREADS: 16 # <- ok i just dont want to die of old age
 DRT_ANTENNA_REPAIR_ITERS: 0
-ERROR_ON_DISCONNECTED_PINS: false 
+ERROR_ON_DISCONNECTED_PINS: false
+GRT_ADJUSTMENT: 0.2
 
 # DFT
 DFT_TEST_MODE_WIRE: tm
@@ -22,7 +30,7 @@ DFT_JSON_MAPPING: dir::../sky130_mapping.json
 DFT_BSCAN_EXCLUDE_IO:
   - clk
   - tm
-  - "!resetn"
+  - "!rst_n"
   - sce
   - sci
   - sco

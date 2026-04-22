@@ -22,14 +22,14 @@ q = queue.Queue()
 
 
 def run_test(tup):
-    test_path, chain = tup
+    test_path, strat = tup
     global status
     test_name = test_path.stem
     status[tup] = "P"
     design_dir = __file_dir__ / "tests" / test_name
     try:
         design_dir.mkdir(parents=True, exist_ok=True)
-        top_clean = design_dir / f"top_{chain}.v"
+        top_clean = design_dir / f"top_{strat}.v"
         with open(design_dir / "ys.log", "w", encoding="utf8") as f:
             subprocess.check_call(
                 [
@@ -47,17 +47,20 @@ def run_test(tup):
         design_name = test_name
         if test_name.endswith("a") or test_name.endswith("b"):
             design_name = design_name[:-1]
-        skips = ["Verilator.Lint"]
-        opt_strat = True
-        if chain == "basic":
-            opt_strat = False
-        MyFlow = {
-            "skip": Flow.factory.get("DifettoPNRNoChain"),
-            "fault": Flow.factory.get("DifettoPNRTopologicalChain"),
-            "basic": Flow.factory.get("DifettoPNR"),
-            "opt": Flow.factory.get("DifettoPNR"),
-        }[chain]
-        f = MyFlow(
+        skips = ["Verilator.Lint", "Odb.ReportDisconnectedPins"]
+        run_nl_chain = False
+        run_pl_chain = True
+        pl_chain_opt = True
+        if strat == "skip":
+            run_pl_chain = False
+        if strat == "fault":
+            run_nl_chain = True
+            run_pl_chain = False
+        if strat == "basic":
+            pl_chain_opt = False
+
+        DifettoPNR = Flow.factory.get("DifettoPNR")
+        f = DifettoPNR(
             {
                 "DESIGN_NAME": design_name,
                 "VERILOG_FILES": [top_clean],
@@ -72,28 +75,30 @@ def run_test(tup):
                 "DFT_JSON_MAPPING": difetto_root / "test" / "sky130_mapping.json",
                 "DFT_BSCAN_EXCLUDE_IO": ["CK", "tm", "!reset", "sce", "sci", "sco"],
                 "SYNTH_WRITE_NOATTR": False,
-                "DFT_SCAN_OPT": opt_strat,
-                # i want the RAW timing
+                "DFT_SCAN_OPT": pl_chain_opt,
+                "RUN_PL_CHAIN": run_pl_chain,
+                "RUN_NL_CHAIN": run_nl_chain,
                 "DRT_THREADS": 1,
                 "RUN_POST_CTS_RESIZER_TIMING": False,
                 "RUN_POST_GRT_RESIZER_TIMING": False,
+                "DRT_ANTENNA_REPAIR_ITERS": 0,
             },
             design_dir=design_dir,
             pdk="sky130A",
         )
         f.start(
-            tag=f"benchmark_{chain}",
+            tag=strat,
             overwrite=True,
             skip=skips,
             to="openroad.stapostpnr",
         )
         status[tup] = "S"
     except FlowError as e:
-        with open(design_dir / f"out_{chain}.log", "w") as f:
+        with open(design_dir / f"out_{strat}.log", "w") as f:
             f.write(str(e))
         status[tup] = "F"
     except Exception as e:
-        with open(design_dir / f"out_{chain}.log", "w") as f:
+        with open(design_dir / f"out_{strat}.log", "w") as f:
             f.write(str(e))
         status[tup] = "E"
 

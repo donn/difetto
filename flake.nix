@@ -23,6 +23,9 @@
         (pkgs': pkgs: let
           callPackage = lib.callPackageWith pkgs';
         in {
+          openroad = pkgs.openroad.overrideAttrs(attrs': attrs: {
+            patches = [./nix/ord-scan_opt.patch];
+          });
           yosys-difetto = callPackage ./yosys-plugin/default.nix {
             src = "${self}/yosys-plugin";
           };
@@ -79,7 +82,15 @@
       in {
         default = pkgs.librelane-shell.override({
           extra-packages = with pkgs; [quaigh python3.pkgs.nl2bench];
-          librelane-extra-python-interpreter-packages = ps: with ps; [bitarray marshmallow-dataclass];
+          extra-python-packages = ps: with ps; [
+            # for testing/benchmarking
+            xlsxwriter
+          ];
+          librelane-extra-python-interpreter-packages = ps: with ps; [bitarray marshmallow-dataclass
+            # for testing/benchmarking
+            matplotlib
+            pyqt6
+          ];
           librelane-plugins = ps: with ps; [librelane-plugin-difetto];
         });
       }

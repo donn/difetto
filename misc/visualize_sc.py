@@ -1,8 +1,12 @@
 import sys
 import yaml
 from matplotlib.pyplot import subplots
+import matplotlib
 
 from reader import OdbReader
+
+matplotlib.use('qtagg')
+
 
 reader = OdbReader(sys.argv[1])
 bbox = reader.block.getBBox()

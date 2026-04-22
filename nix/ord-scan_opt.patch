@@ -1,0 +1,659 @@
+diff --git a/.gitignore b/.gitignore
+index ef56cb366b..d51b1c11d6 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -29,6 +29,7 @@ build
+ build_linux
+ build_mac
+ test/results
++/sandbox
+ 
+ docs/main
+ README2.md
+diff --git a/src/OpenRoad.tcl b/src/OpenRoad.tcl
+index 205d07ab12..651b1981f1 100644
+--- a/src/OpenRoad.tcl
++++ b/src/OpenRoad.tcl
+@@ -337,7 +337,7 @@ proc global_connect { args } {
+     keys {} \
+     flags {-force -verbose}
+ 
+-  sta::check_argc_eq0 "add_global_connection" $args
++  sta::check_argc_eq0 "global_connect" $args
+   [ord::get_db_block] globalConnect [info exists flags(-force)] [info exists flags(-verbose)]
+ }
+ 
+diff --git a/src/dft/include/dft/Dft.hh b/src/dft/include/dft/Dft.hh
+index f6cb7fd9f6..62756c350c 100644
+--- a/src/dft/include/dft/Dft.hh
++++ b/src/dft/include/dft/Dft.hh
+@@ -97,6 +97,8 @@ class Dft
+   // Resets the internal state
+   void reset();
+ 
++  void writeToOdb();
++
+   // Common function to perform scan replace and scan architect. Shared between
+   // report_dft_plan and execute_dft_plan
+   std::vector<std::unique_ptr<ScanChain>> scanArchitect();
+@@ -109,6 +111,7 @@ class Dft
+   // Internal state
+   std::unique_ptr<ScanReplace> scan_replace_;
+   std::unique_ptr<DftConfig> dft_config_;
++  std::vector<std::unique_ptr<ScanChain>> scan_chains_;
+ };
+ 
+ }  // namespace dft
+diff --git a/src/dft/src/Dft.cpp b/src/dft/src/Dft.cpp
+index 648114d7c4..c984b387d0 100644
+--- a/src/dft/src/Dft.cpp
++++ b/src/dft/src/Dft.cpp
+@@ -11,6 +11,7 @@
+ 
+ #include "ClockDomain.hh"
+ #include "DftConfig.hh"
++#include "Opt.hh"
+ #include "ScanArchitect.hh"
+ #include "ScanArchitectConfig.hh"
+ #include "ScanCell.hh"
+@@ -84,21 +85,15 @@ void Dft::scanReplace()
+   scan_replace_->scanReplace();
+ }
+ 
+-void Dft::executeDftPlan()
++void Dft::writeToOdb()
+ {
+-  if (need_to_run_pre_dft_) {
+-    pre_dft();
+-  }
+-  std::vector<std::unique_ptr<ScanChain>> scan_chains = scanArchitect();
+-
+-  ScanStitch stitch(db_, logger_, dft_config_->getScanStitchConfig());
+-  stitch.Stitch(scan_chains);
+-
+   // Write scan chains to odb
+   odb::dbBlock* db_block = db_->getChip()->getBlock();
+   odb::dbDft* db_dft = db_block->getDft();
+ 
+-  for (const auto& chain : scan_chains) {
++  db_dft->reset();
++
++  for (const auto& chain : scan_chains_) {
+     odb::dbScanChain* db_sc = odb::dbScanChain::create(db_dft);
+     db_sc->setName(chain->getName());
+     odb::dbScanPartition* db_part = odb::dbScanPartition::create(db_sc);
+@@ -148,6 +143,22 @@ void Dft::executeDftPlan()
+                  sc_out_load.value().getValue());
+     }
+   }
++
++  db_dft->setScanInserted(true);
++}
++
++void Dft::executeDftPlan()
++{
++  if (need_to_run_pre_dft_) {
++    pre_dft();
++  }
++
++  scan_chains_ = scanArchitect();
++
++  ScanStitch stitch(db_, logger_, dft_config_->getScanStitchConfig());
++  stitch.Stitch(scan_chains_);
++
++  writeToOdb();
+ }
+ 
+ DftConfig* Dft::getMutableDftConfig()
+@@ -189,7 +200,107 @@ std::vector<std::unique_ptr<ScanChain>> Dft::scanArchitect()
+ 
+ void Dft::scanOpt()
+ {
+-  logger_->warn(utl::DFT, 14, "Scan Opt is not currently implemented");
++  for (const auto& chain : scan_chains_) {
++    auto src_pin = chain->getScanIn();
++    auto sink_pin = chain->getScanOut();
++    int src_x, src_y, sink_x, sink_y;
++    if (!src_pin.has_value() || !src_pin->getLocation(src_x, src_y)
++        || !sink_pin.has_value() || !sink_pin->getLocation(sink_x, sink_y)) {
++      logger_->warn(utl::DFT,
++                    14,
++                    "Cannot optimize: source/sink pins don't exist or have no "
++                    "placement.");
++      return;
++    }
++
++    odb::Point src = odb::Point(src_x, src_y);
++    odb::Point sink = odb::Point(sink_x, sink_y);
++
++    int64_t twl_internal = chain->estimateInternalTWL();
++    int64_t twl = twl_internal;
++    const auto& scan_cells = chain->getScanCells();
++    if (scan_cells.size() > 0) {
++      twl += odb::Point::manhattanDistance(src, scan_cells[0]->getOrigin());
++      twl += odb::Point::manhattanDistance(
++          scan_cells[scan_cells.size() - 1]->getOrigin(), sink);
++    }
++    logger_->info(utl::DFT,
++                  15,
++                  "Starting 2-Opt with initial total chain wire length {}",
++                  twl);
++
++    logger_->metric(fmt::format("dft__chain_twl_internal__init__chain:{}",
++                                chain->getName()),
++                    twl_internal);
++    logger_->metric(
++        fmt::format("dft__chain_twl__init__chain:{}", chain->getName()), twl);
++
++    auto twl_opt = chain->sortScanCells(
++        [&](std::vector<std::unique_ptr<ScanCell>>& falling,
++            std::vector<std::unique_ptr<ScanCell>>& rising,
++            std::vector<std::unique_ptr<ScanCell>>& sorted) {
++          sorted.reserve(falling.size() + rising.size());
++          // Sort to reduce wire length
++          odb::Point f_src(src_x, src_y);
++          odb::Point f_sink(sink_x, sink_y);
++          if (rising.size() > 0) {
++            f_sink = rising[0]->getOrigin();
++          }
++          auto falling_wire_length
++              = OptimizeScanWirelength2Opt(f_src, f_sink, falling, logger_);
++
++          odb::Point r_src(src_x, src_y);
++          if (falling.size() > 0) {
++            r_src = falling[falling.size() - 1]->getOrigin();
++          }
++          odb::Point r_sink(sink_x, sink_y);
++          auto rising_wire_length
++              = OptimizeScanWirelength2Opt(r_src, r_sink, rising, logger_);
++
++          int64_t distance_between_falling_and_rising = 0;
++          if (rising.size() > 0 && falling.size() > 0) {
++            distance_between_falling_and_rising = odb::Point::manhattanDistance(
++                falling[falling.size() - 1]->getOrigin(),
++                rising[0]->getOrigin());
++          }
++
++          std::ranges::move(falling, std::back_inserter(sorted));
++          std::ranges::move(rising, std::back_inserter(sorted));
++
++          // distance between falling and rising is double-counted by both
++          // optimization algorithms
++          return falling_wire_length + rising_wire_length
++                 - distance_between_falling_and_rising;
++        });
++
++    logger_->info(utl::DFT,
++                  16,
++                  "Concluded 2-Opt with total chain wire length {}.",
++                  twl_opt);
++
++    int64_t twl_internal_opt = chain->estimateInternalTWL();
++    logger_->metric(fmt::format("dft__chain_twl_internal__post_opt__chain:{}",
++                                chain->getName()),
++                    twl_internal_opt);
++
++    const auto& scan_cells_opt = chain->getScanCells();
++    int64_t twl_opt_confirm = twl_internal_opt;
++    if (scan_cells_opt.size() > 0) {
++      twl_opt_confirm
++          += odb::Point::manhattanDistance(src, scan_cells_opt[0]->getOrigin());
++      twl_opt_confirm += odb::Point::manhattanDistance(
++          scan_cells_opt[scan_cells_opt.size() - 1]->getOrigin(), sink);
++    }
++    assert(twl_opt == twl_opt_confirm);
++
++    logger_->metric(
++        fmt::format("dft__chain_twl__post_opt__chain:{}", chain->getName()),
++        twl_opt);
++  }
++
++  ScanStitch stitch(db_, logger_, dft_config_->getScanStitchConfig());
++  stitch.Stitch(scan_chains_);
++  writeToOdb();
+ }
+ 
+ }  // namespace dft
+diff --git a/src/dft/src/architect/Opt.cpp b/src/dft/src/architect/Opt.cpp
+index 5f6f1e16da..a550988590 100644
+--- a/src/dft/src/architect/Opt.cpp
++++ b/src/dft/src/architect/Opt.cpp
+@@ -3,6 +3,7 @@
+ 
+ #include "Opt.hh"
+ 
++#include <cinttypes>
+ #include <cstddef>
+ #include <cstdint>
+ #include <limits>
+@@ -14,8 +15,7 @@
+ #include "ScanCell.hh"
+ #include "boost/geometry/geometries/register/point.hpp"
+ #include "boost/geometry/geometry.hpp"
+-#include "boost/geometry/index/rtree.hpp"
+-#include "utl/Logger.h"
++#include "odb/geom.h"
+ 
+ namespace bg = boost::geometry;
+ namespace bgi = boost::geometry::index;
+@@ -28,17 +28,17 @@ namespace {
+ constexpr int kMaxCellsToSearch = 10;
+ }  // namespace
+ 
+-void OptimizeScanWirelength(std::vector<std::unique_ptr<ScanCell>>& cells,
+-                            utl::Logger* logger)
++int64_t OptimizeScanWirelengthNN(std::vector<std::unique_ptr<ScanCell>>& cells,
++                                 utl::Logger* logger)
+ {
+   // Nothing to order
+   if (cells.empty()) {
+-    return;
++    return 0;
+   }
+   // No point running this if the cells aren't placed yet
+   for (const auto& cell : cells) {
+     if (!cell->isPlaced()) {
+-      return;
++      return 0;
+     }
+   }
+   // Define the starting node as the lower leftmost, so we don't accidentally
+@@ -68,6 +68,7 @@ void OptimizeScanWirelength(std::vector<std::unique_ptr<ScanCell>>& cells,
+   // Search nearest neighbours
+   std::vector<std::unique_ptr<ScanCell>> result;
+   result.emplace_back(std::move(cells[cursor.second]));
++  int64_t twl = 0;
+   while (result.size() < cells.size()) {
+     // Search for next nearest
+     auto next = cursor;
+@@ -85,6 +86,10 @@ void OptimizeScanWirelength(std::vector<std::unique_ptr<ScanCell>>& cells,
+           10,
+           "Couldn't find nearest neighbor, too many overlapping cells");
+     }
++    twl += std::llabs(boost::geometry::get<0>(cursor.first)
++                      - boost::geometry::get<0>(next.first))
++           + std::llabs(boost::geometry::get<1>(cursor.first)
++                        - boost::geometry::get<1>(next.first));
+     // Make sure we only visit things once
+     rtree.remove(cursor);
+     cursor = std::move(next);
+@@ -92,6 +97,94 @@ void OptimizeScanWirelength(std::vector<std::unique_ptr<ScanCell>>& cells,
+   }
+   // Replace with sorted vector
+   std::swap(cells, result);
++
++  return twl;
++}
++
++int64_t OptimizeScanWirelength2Opt(
++    const odb::Point source,
++    const odb::Point sink,
++    std::vector<std::unique_ptr<ScanCell>>& cells,
++    utl::Logger* logger,
++    size_t max_iters)
++{
++  // Nothing to order
++  if (cells.empty()) {
++    return 0;
++  }
++
++  size_t N = cells.size() + 2;
++
++  std::vector<odb::Point> points(N);
++  size_t i = -1;
++  points[++i] = source;
++
++  int64_t score = 0;
++  odb::Point last = points[i];
++  for (const auto& cell : cells) {
++    if (!cell->isPlaced()) {
++      // No point running this if the cells aren't placed yet
++      return 0;
++    }
++
++    points[++i] = cell->getOrigin();
++    score += odb::Point::manhattanDistance(last, points[i]);
++    last = points[i];
++  }
++  points[++i] = sink;
++  score += odb::Point::manhattanDistance(last, sink);
++  assert(++i == N);
++
++  int64_t best_score = score;
++
++  // Already "optimal" (unplaced)
++  if (best_score == 0) {
++    return 0;
++  }
++
++  size_t iters = 0;
++  bool improved_last_iter = true;
++  while (improved_last_iter && iters < max_iters) {
++    iters += 1;
++    logger->info(utl::DFT,
++                 9101,
++                 "Starting iteration {} (TWL: {})...",
++                 iters,
++                 best_score);
++    improved_last_iter = false;
++    for (size_t i = 0; i < N - 2; i += 1) {
++      for (size_t j = i + 2; j < N - 1; j += 1) {
++        auto&& x = points[i];
++        auto&& y = points[j];
++        auto&& u = points[i + 1];
++        auto&& v = points[j + 1];
++        auto score_d = -odb::Point::manhattanDistance(x, u)
++                       - odb::Point::manhattanDistance(y, v)
++                       + odb::Point::manhattanDistance(x, y)
++                       + odb::Point::manhattanDistance(u, v);
++        if (score_d < 0) {
++          improved_last_iter = true;
++          best_score += score_d;
++          for (size_t k = 0; k < (j - i) / 2; k += 1) {
++            std::swap(points[i + 1 + k], points[j - k]);
++            std::swap(cells[i + k], cells[j - k - 1]);
++          }
++        }
++      }
++    }
++  }
++
++  if (improved_last_iter) {
++    logger->info(utl::DFT,
++                 9102,
++                 "Stopping because the max iteration count was reached.",
++                 iters);
++  } else {
++    logger->info(
++        utl::DFT, 9103, "Stopping because of a lack of improvement.", iters);
++  }
++
++  return best_score;
+ }
+ 
+ }  // namespace dft
+diff --git a/src/dft/src/architect/Opt.hh b/src/dft/src/architect/Opt.hh
+index be1504d6d9..2f7a801012 100644
+--- a/src/dft/src/architect/Opt.hh
++++ b/src/dft/src/architect/Opt.hh
+@@ -13,7 +13,14 @@
+ namespace dft {
+ 
+ // Order scan cells to reduce wirelength
+-void OptimizeScanWirelength(std::vector<std::unique_ptr<ScanCell>>& cells,
+-                            utl::Logger* logger);
++int64_t OptimizeScanWirelengthNN(std::vector<std::unique_ptr<ScanCell>>& cells,
++                                 utl::Logger* logger);
++
++int64_t OptimizeScanWirelength2Opt(
++    const odb::Point source,
++    const odb::Point sink,
++    std::vector<std::unique_ptr<ScanCell>>& cells,
++    utl::Logger* logger,
++    size_t max_iters = 30);
+ 
+ }  // namespace dft
+diff --git a/src/dft/src/architect/ScanArchitectHeuristic.cpp b/src/dft/src/architect/ScanArchitectHeuristic.cpp
+index 70e0bc830e..c8ca8c1c4c 100644
+--- a/src/dft/src/architect/ScanArchitectHeuristic.cpp
++++ b/src/dft/src/architect/ScanArchitectHeuristic.cpp
+@@ -41,18 +41,40 @@ void ScanArchitectHeuristic::architect()
+         current_chain->add(std::move(scan_cell));
+       }
+ 
+-      current_chain->sortScanCells(
+-          [this](std::vector<std::unique_ptr<ScanCell>>& falling,
+-                 std::vector<std::unique_ptr<ScanCell>>& rising,
+-                 std::vector<std::unique_ptr<ScanCell>>& sorted) {
++      logger_->info(utl::DFT,
++                    1000,
++                    "Starting nearest-neighbor sort for chain {}",
++                    current_chain->getName());
++
++      auto total_wire_length = current_chain->sortScanCells(
++          [&](std::vector<std::unique_ptr<ScanCell>>& falling,
++              std::vector<std::unique_ptr<ScanCell>>& rising,
++              std::vector<std::unique_ptr<ScanCell>>& sorted) {
+             sorted.reserve(falling.size() + rising.size());
+             // Sort to reduce wire length
+-            OptimizeScanWirelength(falling, logger_);
+-            OptimizeScanWirelength(rising, logger_);
+-            // Falling edge first
++            auto falling_wire_length
++                = OptimizeScanWirelengthNN(falling, logger_);
++            auto rising_wire_length = OptimizeScanWirelengthNN(rising, logger_);
++            int64_t distance_between_falling_and_rising = 0;
++            if (rising.size() && falling.size()) {
++              distance_between_falling_and_rising
++                  = odb::Point::manhattanDistance(
++                      falling[falling.size() - 1]->getOrigin(),
++                      rising[0]->getOrigin());
++            }
++            // Falling edges first
+             std::ranges::move(falling, std::back_inserter(sorted));
+             std::ranges::move(rising, std::back_inserter(sorted));
++            return falling_wire_length + distance_between_falling_and_rising
++                   + rising_wire_length;
+           });
++      logger_->info(
++          utl::DFT,
++          1001,
++          "Finished nearest-neighbor sort for chain {} with estimated internal "
++          "total wire length {}.",
++          current_chain->getName(),
++          total_wire_length);
+     }
+   }
+ }
+diff --git a/src/dft/src/architect/ScanChain.cpp b/src/dft/src/architect/ScanChain.cpp
+index 620216113a..8e60c1ab1b 100644
+--- a/src/dft/src/architect/ScanChain.cpp
++++ b/src/dft/src/architect/ScanChain.cpp
+@@ -46,12 +46,23 @@ uint64_t ScanChain::getBits() const
+   return bits_;
+ }
+ 
+-void ScanChain::sortScanCells(
+-    const std::function<void(std::vector<std::unique_ptr<ScanCell>>&,
+-                             std::vector<std::unique_ptr<ScanCell>>&,
+-                             std::vector<std::unique_ptr<ScanCell>>&)>& sort_fn)
++int64_t ScanChain::sortScanCells(
++    const std::function<int64_t(std::vector<std::unique_ptr<ScanCell>>&,
++                                std::vector<std::unique_ptr<ScanCell>>&,
++                                std::vector<std::unique_ptr<ScanCell>>&)>&
++        sort_fn)
+ {
+-  sort_fn(falling_edge_scan_cells_, rising_edge_scan_cells_, scan_cells_);
++  if (!empty()) {
++    bits_ = 0;
++    for (auto& cell : scan_cells_) {
++      add(std::move(cell));
++    }
++    scan_cells_.clear();
++    scan_cells_.shrink_to_fit();
++  }
++
++  auto total_wire_length
++      = sort_fn(falling_edge_scan_cells_, rising_edge_scan_cells_, scan_cells_);
+   // At this point, falling_edge_scan_cells_ and rising_edge_scan_cells_ will be
+   // with just null, we clear and reduce the memory of the vectors
+ 
+@@ -60,6 +71,23 @@ void ScanChain::sortScanCells(
+ 
+   falling_edge_scan_cells_.shrink_to_fit();
+   rising_edge_scan_cells_.shrink_to_fit();
++
++  return total_wire_length;
++}
++
++int64_t ScanChain::estimateInternalTWL()
++{
++  if (scan_cells_.size() == 0) {
++    return 0;
++  }
++  int64_t twl = 0;
++  auto last = scan_cells_[0]->getOrigin();
++  for (const auto& cell : scan_cells_) {
++    auto current = cell->getOrigin();
++    twl += odb::Point::manhattanDistance(last, current);
++    last = current;
++  }
++  return twl;
+ }
+ 
+ const std::vector<std::unique_ptr<ScanCell>>& ScanChain::getScanCells() const
+diff --git a/src/dft/src/architect/ScanChain.hh b/src/dft/src/architect/ScanChain.hh
+index e4c95d86de..9c07df6d79 100644
+--- a/src/dft/src/architect/ScanChain.hh
++++ b/src/dft/src/architect/ScanChain.hh
+@@ -46,12 +46,14 @@ class ScanChain
+ 
+   // Sorts the scan cells of this chain.  This function has 3 arguments: falling
+   // cells, rising cells and the output vector with the sorted cells
+-  void sortScanCells(
+-      const std::function<void(std::vector<std::unique_ptr<ScanCell>>&,
+-                               std::vector<std::unique_ptr<ScanCell>>&,
+-                               std::vector<std::unique_ptr<ScanCell>>&)>&
++  int64_t sortScanCells(
++      const std::function<int64_t(std::vector<std::unique_ptr<ScanCell>>&,
++                                  std::vector<std::unique_ptr<ScanCell>>&,
++                                  std::vector<std::unique_ptr<ScanCell>>&)>&
+           sort_fn);
+ 
++  int64_t estimateInternalTWL();
++
+   // Returns a reference to a vector containing all the scan cells of the chain
+   const std::vector<std::unique_ptr<ScanCell>>& getScanCells() const;
+ 
+diff --git a/src/dft/src/config/ScanArchitectConfig.hh b/src/dft/src/config/ScanArchitectConfig.hh
+index fb1ef17b76..3e708c56c4 100644
+--- a/src/dft/src/config/ScanArchitectConfig.hh
++++ b/src/dft/src/config/ScanArchitectConfig.hh
+@@ -22,6 +22,7 @@ class ScanArchitectConfig
+   };
+ 
+   void setClockMixing(ClockMixing clock_mixing);
++  ClockMixing getClockMixing() const;
+ 
+   // The max length in bits that a scan chain can have
+   void setMaxLength(uint64_t max_length);
+@@ -31,8 +32,6 @@ class ScanArchitectConfig
+   void setMaxChains(uint64_t max_chains);
+   const std::optional<uint64_t>& getMaxChains() const;
+ 
+-  ClockMixing getClockMixing() const;
+-
+   // Prints using logger->report the config used by Scan Architect
+   void report(utl::Logger* logger) const;
+ 
+diff --git a/src/dft/src/replace/ScanReplace.hh b/src/dft/src/replace/ScanReplace.hh
+index 8fcd64eb0f..e4bfc1f754 100644
+--- a/src/dft/src/replace/ScanReplace.hh
++++ b/src/dft/src/replace/ScanReplace.hh
+@@ -103,6 +103,8 @@ class ScanReplace
+                           odb::dbMaster* master_scan_cell,
+                           const std::unique_ptr<ScanCandidate>& scan_candidate);
+ 
++  void writeToOdb(odb::dbMaster* master);
++
+   odb::dbDatabase* db_;
+   sta::dbSta* sta_;
+   utl::Logger* logger_;
+diff --git a/src/dft/src/utils/ScanPin.cpp b/src/dft/src/utils/ScanPin.cpp
+index 59e24a002a..7b30ca057f 100644
+--- a/src/dft/src/utils/ScanPin.cpp
++++ b/src/dft/src/utils/ScanPin.cpp
+@@ -18,7 +18,7 @@ odb::dbNet* ScanPin::getNet() const
+ {
+   return std::visit(
+       overloaded{[](odb::dbITerm* iterm) { return iterm->getNet(); },
+-                 [](odb::dbBTerm* iterm) { return iterm->getNet(); }},
++                 [](odb::dbBTerm* bterm) { return bterm->getNet(); }},
+       value_);
+ }
+ 
+@@ -27,7 +27,7 @@ std::string_view ScanPin::getName() const
+   return std::visit(
+       overloaded{
+           [](odb::dbITerm* iterm) { return iterm->getMTerm()->getConstName(); },
+-          [](odb::dbBTerm* iterm) { return iterm->getConstName(); }},
++          [](odb::dbBTerm* bterm) { return bterm->getConstName(); }},
+       value_);
+ }
+ 
+@@ -36,6 +36,16 @@ const std::variant<odb::dbBTerm*, odb::dbITerm*>& ScanPin::getValue() const
+   return value_;
+ }
+ 
++bool ScanPin::getLocation(int& x, int& y) const
++{
++  return std::visit(
++      overloaded{[&](odb::dbITerm* iterm) { return iterm->getAvgXY(&x, &y); },
++                 [&](odb::dbBTerm* bterm) {
++                   return bterm->getFirstPinLocation(x, y);
++                 }},
++      value_);
++}
++
+ ScanLoad::ScanLoad(std::variant<odb::dbBTerm*, odb::dbITerm*> term)
+     : ScanPin(term)
+ {
+diff --git a/src/dft/src/utils/ScanPin.hh b/src/dft/src/utils/ScanPin.hh
+index 5024f982ac..02c5e4fd23 100644
+--- a/src/dft/src/utils/ScanPin.hh
++++ b/src/dft/src/utils/ScanPin.hh
+@@ -29,6 +29,7 @@ class ScanPin
+   odb::dbNet* getNet() const;
+   std::string_view getName() const;
+   const std::variant<odb::dbBTerm*, odb::dbITerm*>& getValue() const;
++  bool getLocation(int& x, int& y) const;
+ 
+  protected:
+   std::variant<odb::dbBTerm*, odb::dbITerm*> value_;
+diff --git a/src/odb/include/odb/db.h b/src/odb/include/odb/db.h
+index a64c59b98e..6d1d7b038b 100644
+--- a/src/odb/include/odb/db.h
++++ b/src/odb/include/odb/db.h
+@@ -7707,6 +7707,9 @@ class dbDft : public dbObject
+   bool isScanInserted() const;
+ 
+   dbSet<dbScanChain> getScanChains() const;
++
++  void reset();  // HACK: just have an option to nuke everything until
++                 // i can write better database update code
+ };
+ 
+ class dbGCellGrid : public dbObject
+diff --git a/src/odb/src/db/dbDft.cpp b/src/odb/src/db/dbDft.cpp
+index f229bd99c6..057ffe3951 100644
+--- a/src/odb/src/db/dbDft.cpp
++++ b/src/odb/src/db/dbDft.cpp
+@@ -124,5 +124,15 @@ dbSet<dbScanChain> dbDft::getScanChains() const
+   return dbSet<dbScanChain>(obj, obj->scan_chains_);
+ }
+ 
++void dbDft::reset()
++{
++  _dbDft* obj = (_dbDft*) this;
++  obj->scan_inserted_ = false;
++
++  // HACK: following may leak memory.
++  obj->scan_pins_->clear();
++  obj->scan_chains_->clear();
++}
++
+ }  // namespace odb
+ // Generator Code End Cpp
+diff --git a/src/utl/include/utl/Logger.h b/src/utl/include/utl/Logger.h
+index 8592bea678..c5628246a6 100644
+--- a/src/utl/include/utl/Logger.h
++++ b/src/utl/include/utl/Logger.h
+@@ -170,7 +170,7 @@ class Logger
+     error_count_++;
+     log(tool, spdlog::level::err, id, message, args...);
+     char tool_id[32];
+-    sprintf(tool_id, "%s-%04d", tool_names_[tool], id);
++    snprintf(tool_id, sizeof(tool_id), "%s-%04d", tool_names_[tool], id);
+     // Exception should be caught by swig error handler.
+     throw std::runtime_error(tool_id);
+   }
