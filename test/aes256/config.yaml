@@ -25,7 +25,10 @@ DFT_TEST_CLOCK_WIRE: clk
 DFT_SCAN_IN_PATTERN: sci
 DFT_SCAN_OUT_PATTERN: sco
 DFT_SCAN_ENABLE_PATTERN: sce
-DFT_JSON_MAPPING: dir::../sky130_mapping.json
+scl::sky130_fd_sc_hd:
+  DFT_JSON_MAPPING: dir::../../tech/sky130_fd_sc_hd_mapping.json
+scl::gf180mcu_fd_sc_mcu7t5v0:
+  DFT_JSON_MAPPING: dir::../../tech/gf180mcu_fd_sc_mcu7t5v0_mapping.json
 DFT_BSCAN_EXCLUDE_IO:
   - clk
   - tm

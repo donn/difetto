@@ -22,6 +22,9 @@ tests_dir = difetto_root / "yosys-plugin" / "test" / "iscas_89" / "rtl"
 status = {}
 q = queue.Queue()
 
+pdk = os.getenv("PDK", "sky130A")
+scl = os.getenv("STD_CELL_LIBRARY", "sky130_fd_sc_hd")
+
 
 def run_test(tup):
     test_path, strat = tup
@@ -63,32 +66,34 @@ def run_test(tup):
 
         DifettoPNR = Flow.factory.get("DifettoPNR")
         f = DifettoPNR(
-            {
-                "DESIGN_NAME": design_name,
-                "VERILOG_FILES": [top_clean],
-                "CLOCK_PORT": "CK",
-                "CLOCK_PERIOD": 10,
-                "FP_CORE_UTIL": 40,
-                "DFT_TEST_MODE_WIRE": "tm",
-                "DFT_TEST_CLOCK_WIRE": "CK",
-                "DFT_SCAN_IN_PATTERN": "sci",
-                "DFT_SCAN_OUT_PATTERN": "sco",
-                "DFT_SCAN_ENABLE_PATTERN": "sce",
-                "DFT_JSON_MAPPING": difetto_root / "test" / "sky130_mapping.json",
-                "DFT_BSCAN_EXCLUDE_IO": ["CK", "tm", "!reset", "sce", "sci", "sco"],
-                "SYNTH_WRITE_NOATTR": False,
-                "DFT_SCAN_OPT": pl_chain_opt,
-                "RUN_PL_CHAIN": run_pl_chain,
-                "RUN_NL_CHAIN": run_nl_chain,
-                "DRT_THREADS": 1,
-                "RUN_POST_CTS_RESIZER_TIMING": True,
-                "RUN_POST_GRT_RESIZER_TIMING": True,
-                "DRT_ANTENNA_REPAIR_ITERS": 0,
-                "GRT_ALLOW_CONGESTION": True,
-                "RUN_DUMP_CONGESTION_HEATMAP": True,
-            },
+            [
+                __file_dir__ / f"{scl}.yaml",
+                {
+                    "DESIGN_NAME": design_name,
+                    "VERILOG_FILES": [top_clean],
+                    "CLOCK_PORT": "CK",
+                    "DFT_TEST_MODE_WIRE": "tm",
+                    "DFT_TEST_CLOCK_WIRE": "CK",
+                    "DFT_SCAN_IN_PATTERN": "sci",
+                    "DFT_SCAN_OUT_PATTERN": "sco",
+                    "DFT_SCAN_ENABLE_PATTERN": "sce",
+                    "DFT_JSON_MAPPING": difetto_root / "tech" / f"{scl}_mapping.json",
+                    "DFT_BSCAN_EXCLUDE_IO": ["CK", "tm", "!reset", "sce", "sci", "sco"],
+                    "SYNTH_WRITE_NOATTR": False,
+                    "DFT_SCAN_OPT": pl_chain_opt,
+                    "RUN_PL_CHAIN": run_pl_chain,
+                    "RUN_NL_CHAIN": run_nl_chain,
+                    "DRT_THREADS": 1,
+                    "RUN_POST_CTS_RESIZER_TIMING": True,
+                    "RUN_POST_GRT_RESIZER_TIMING": True,
+                    "DRT_ANTENNA_REPAIR_ITERS": 0,
+                    "GRT_ALLOW_CONGESTION": True,
+                    "RUN_DUMP_CONGESTION_HEATMAP": True,
+                },
+            ],
             design_dir=design_dir,
-            pdk="sky130A",
+            pdk=pdk,
+            scl=scl,
         )
         f.start(
             tag=strat,
