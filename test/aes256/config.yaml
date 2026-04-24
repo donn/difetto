@@ -6,19 +6,18 @@ VERILOG_FILES:
 - dir::top.v
 CLOCK_PERIOD: 5
 CLOCK_PORT: clk
-FP_CORE_UTIL: 50
+FP_CORE_UTIL: 30
 
 # Synthesis
 SYNTH_WRITE_NOATTR: false
 ERROR_ON_SYNTH_CHECKS: false
 
-# We want the results RAW
-RUN_POST_CTS_RESIZER_TIMING: false
-RUN_POST_GRT_RESIZER_TIMING: false
-DRT_THREADS: 16 # <- ok i just dont want to die of old age
+DRT_THREADS: 16  # <- ok i just dont want to die of old age
 DRT_ANTENNA_REPAIR_ITERS: 0
+RUN_ANTENNA_REPAIR: false
 ERROR_ON_DISCONNECTED_PINS: false
-GRT_ADJUSTMENT: 0.2
+GRT_ALLOW_CONGESTION: true
+RUN_DUMP_CONGESTION_HEATMAP: true
 
 # DFT
 DFT_TEST_MODE_WIRE: tm

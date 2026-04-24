@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Mohamed Gaber
 import xlsxwriter
 from xlsxwriter.utility import xl_rowcol_to_cell
+import csv
 import re
 import sys
 import json
@@ -24,7 +25,13 @@ cols = [
     "TWL (Post-Opt)",
     "TWL Drop",
 ]
-for metric in ["Worst Slack", "Total Negative Slack", "Routing Time"]:
+for metric in [
+    # "Worst Slack",
+    # "Total Negative Slack",
+    "Routing Time",
+    "Average Congestion",
+    "Congested Cells",
+]:
     for strat in ["skip", "fault", "basic", "opt"]:
         cols.append(f"{metric} ({strat})")
     for strat in ["skip", "fault", "basic", "opt"]:
@@ -50,24 +57,45 @@ def get_elapsed_drt_time(path):
         last = res[1]
     return last
 
-def w(name, data):
-    global row
-    global worksheet
-    global col_by_name
-    worksheet.write(row, col_by_name[name], data)
 
-def wf(name, data):
+def w(name, data, format=None):
     global row
     global worksheet
     global col_by_name
-    worksheet.write_formula(row, col_by_name[name], data)
+    worksheet.write(row, col_by_name[name], data, format)
+
+
+def wf(name, data, format=None):
+    global row
+    global worksheet
+    global col_by_name
+    worksheet.write_formula(row, col_by_name[name], data, format)
+
+
+def get_congestion_scores(csv_path, threshold=80):
+    r = csv.reader(open(csv_path))
+    next(r)
+
+    gcell_count = 0
+    congested_cells = 0
+    total_congestion = 0
+    for item in r:
+        gcell_count += 1
+        congestion = float(item[-1])
+        congested_cells += int(congestion > threshold)
+        total_congestion += congestion
+    return congestion / gcell_count, congested_cells / gcell_count
+
+
+percent_format = workbook.add_format({"num_format": "0.00%"})
 
 for design_dir_raw in sys.argv[1:]:
     design_dir = Path(design_dir_raw)
+    if not design_dir.is_dir():
+        print(f"{design_dir} is not a valid directory", file=sys.stderr)
+        exit(1)
     test_name = design_dir.stem
     final_dirs = list(design_dir.glob("runs/*/final"))
-    if final_dirs == 0:
-        continue
     if len(final_dirs) < 4:
         print(f"{test_name} may not be done.", file=sys.stderr)
     print(f"Processing {test_name}…", file=sys.stderr)
@@ -77,16 +105,30 @@ for design_dir_raw in sys.argv[1:]:
         if strat == "synth":
             # reusable synth dir, ignore
             continue
+        try:
+            synth_dir = next(final_dir.parent.glob("*-difetto-synthesis"))
+        except:
+            synth_run = final_dir.parents[1] / "synth"
+            synth_dir = next(synth_run.glob("*-difetto-synthesis"))
         drt_dir = next(final_dir.parent.glob("*-openroad-detailedrouting"))
+        try:
+            heatmap_dir = next(
+                final_dir.parent.glob("*-openroad-dumpcongestionheatmap")
+            )
+        except StopIteration:
+            heatmap_dir = next(
+                final_dir.parent.glob("*-openroad-dumpheatmaps")
+            )  # old step
+        with open(synth_dir / "state_out.json") as f:
+            synth_metrics = json.load(f)["metrics"]
         with open(drt_dir / "state_out.json") as f:
-            state_out = json.load(f)
-        metrics = state_out["metrics"]
+            drt_metrics = json.load(f)["metrics"]
         with open(drt_dir / "config.json") as f:
             drt_conf = json.load(f)
         w("Design", test_name)
         if strat == "opt":
             dft_dir = next(final_dir.parent.glob("*-difetto-chain"))
-            w("Cell Count", metrics["design__instance__count"])
+            w("Cell Count", synth_metrics["design__instance__count"])
             w(
                 "Scannable Elements",
                 len(
@@ -97,55 +139,79 @@ for design_dir_raw in sys.argv[1:]:
             )
             cells_ref = xl_rowcol_to_cell(row, col_by_name["Cell Count"])
             scannable_ref = xl_rowcol_to_cell(row, col_by_name["Scannable Elements"])
-            wf(
-                "Scannable Element Ratio",
-                f"={scannable_ref}/{cells_ref}"
-            )
+            wf("Scannable Element Ratio", f"={scannable_ref}/{cells_ref}")
             w("Routing Threads", drt_conf["DRT_THREADS"])
             w(
                 "Internal TWL (Pre-Opt)",
-                metrics["dft__chain_twl_internal__init__chain:chain_0"],
+                drt_metrics["dft__chain_twl_internal__init__chain:chain_0"],
             )
             w(
                 "Internal TWL (Post-Opt)",
-                metrics["dft__chain_twl_internal__post_opt__chain:chain_0"],
+                drt_metrics["dft__chain_twl_internal__post_opt__chain:chain_0"],
             )
             w(
                 "TWL (Pre-Opt)",
-                metrics["dft__chain_twl__init__chain:chain_0"],
+                drt_metrics["dft__chain_twl__init__chain:chain_0"],
             )
             w(
                 "TWL (Post-Opt)",
-                metrics["dft__chain_twl__post_opt__chain:chain_0"],
+                drt_metrics["dft__chain_twl__post_opt__chain:chain_0"],
             )
             twl_pre_ref = xl_rowcol_to_cell(row, col_by_name["TWL (Pre-Opt)"])
             twl_post_ref = xl_rowcol_to_cell(row, col_by_name["TWL (Post-Opt)"])
-        w(f"Worst Slack ({strat})", metrics["timing__setup__ws"])
-        w(f"Total Negative Slack ({strat})", metrics["timing__setup__tns"])
-        w(f"Routing Time ({strat})", get_elapsed_drt_time(drt_dir / "openroad-detailedrouting.log"))
+            wf("TWL Drop", f"=({twl_pre_ref}-{twl_post_ref})/{twl_pre_ref}")
+        w(
+            f"Routing Time ({strat})",
+            get_elapsed_drt_time(drt_dir / "openroad-detailedrouting.log"),
+        )
+        avg_congestion, congested_cells = get_congestion_scores(
+            heatmap_dir / "congestion.csv"
+        )
+        w(
+            f"Average Congestion ({strat})",
+            avg_congestion,
+            percent_format,
+        )
+        w(
+            f"Congested Cells ({strat})",
+            congested_cells,
+            percent_format,
+        )
 
 first_se_ratio = xl_rowcol_to_cell(1, col_by_name["Scannable Element Ratio"])
 last_se_ratio = xl_rowcol_to_cell(row, col_by_name["Scannable Element Ratio"])
-for metric in ["Worst Slack", "Total Negative Slack", "Routing Time"]:
+for metric in [
+    # "Worst Slack",
+    # "Total Negative Slack",
+    "Routing Time",
+    "Average Congestion",
+    "Congested Cells",
+]:
     for strat in ["fault", "basic", "opt"]:
         base = f"{metric} (skip)"
         ref = f"{metric} ({strat})"
         calculated = f"{metric} Impact ({strat})"
         first = xl_rowcol_to_cell(1, col_by_name[calculated])
-        for i in range(1, row+1):
+        for i in range(1, row + 1):
             base_cell = xl_rowcol_to_cell(i, col_by_name[base])
             strat_cell = xl_rowcol_to_cell(i, col_by_name[ref])
             impact_cell = xl_rowcol_to_cell(i, col_by_name[calculated])
-            worksheet.write_formula(impact_cell, f"=IF({base_cell}=0, \"\", ({strat_cell}-{base_cell})/{base_cell})")
-        last =xl_rowcol_to_cell(row, col_by_name[calculated])
-        avg_cell = xl_rowcol_to_cell(row+1, col_by_name[calculated])
-        worksheet.write_formula(avg_cell, f"=AVERAGE({first}:{last})")
-        median_cell = xl_rowcol_to_cell(row+2, col_by_name[calculated])
-        worksheet.write_formula(median_cell, f"=MEDIAN({first}:{last})")
-        stdev_cell = xl_rowcol_to_cell(row+3, col_by_name[calculated])
-        worksheet.write_formula(stdev_cell, f"=STDEV({first}:{last})")
-        correlate_cell = xl_rowcol_to_cell(row+4, col_by_name[calculated])
-        worksheet.write_formula(correlate_cell, f"=CORREL({first}:{last},{first_se_ratio}:{last_se_ratio})")
+            worksheet.write_formula(
+                impact_cell,
+                f'=IF({base_cell}=0, "", ({strat_cell}-{base_cell})/{base_cell})',
+                percent_format,
+            )
+        last = xl_rowcol_to_cell(row, col_by_name[calculated])
+        avg_cell = xl_rowcol_to_cell(row + 1, col_by_name[calculated])
+        worksheet.write_formula(avg_cell, f"=AVERAGE({first}:{last})", percent_format)
+        median_cell = xl_rowcol_to_cell(row + 2, col_by_name[calculated])
+        worksheet.write_formula(median_cell, f"=MEDIAN({first}:{last})", percent_format)
+        stdev_cell = xl_rowcol_to_cell(row + 3, col_by_name[calculated])
+        worksheet.write_formula(stdev_cell, f"=STDEV({first}:{last})", percent_format)
+        correlate_cell = xl_rowcol_to_cell(row + 4, col_by_name[calculated])
+        worksheet.write_formula(
+            correlate_cell, f"=CORREL({first}:{last},{first_se_ratio}:{last_se_ratio})"
+        )  # r, not %
 
 workbook.close()
 

@@ -194,7 +194,7 @@ DesignFormat(
 class TopologicalChain(DFTCommon):
     """
     Chains all flip-flops by declaration order,
-    `Fault <https://github.com/AUCOHL/Fault>`_\-style.
+    `Fault <https://github.com/AUCOHL/Fault>`_\\-style.
 
     For benchmarking.
     """
@@ -420,6 +420,27 @@ class Chain(OpenROADStep):
             )
         )
         return views, metrics
+
+
+@Step.factory.register()
+class DumpCongestionHeatmap(OpenROADStep):
+    """
+    Uses the OpenROAD GUI to export the congestion heatmap.
+
+    For benchmarking.
+    """
+
+    id = "OpenROAD.DumpCongestionHeatmap"
+
+    def get_script_path(self):
+        return os.path.join(
+            __file_dir__, "scripts", "openroad", "dump_congestion_heatmap.tcl"
+        )
+
+    def get_command(self):
+        cmd: list = super().get_command()
+        cmd.insert(cmd.index("openroad") + 1, "-gui")  # needs -gui
+        return cmd
 
 
 class CocotbStep(Step):

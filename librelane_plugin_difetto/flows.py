@@ -22,6 +22,7 @@ class DifettoPNR(Classic):
             "+Difetto.Chain",
             "OpenROAD.RepairDesign",
         ),  # SCE has |scannable_element_count| fanout
+        ("+OpenROAD.ResizerTimingPostGRT", "OpenROAD.DumpCongestionHeatmap"),
     ]
 
     config_vars = Classic.config_vars + [
@@ -37,12 +38,19 @@ class DifettoPNR(Classic):
             "Enables constructing a chain based on data from the detailed placement.",
             default=True,
         ),
+        Variable(
+            "RUN_DUMP_CONGESTION_HEATMAP",
+            bool,
+            "Dumps the congestion heatmap using the OpenROAD GUI, but requires a non-headless environment.",
+            default=False,
+        ),
     ]
 
     gating_config_vars = {
         **Classic.gating_config_vars,
         "Difetto.Chain": ["RUN_PL_CHAIN"],
         "Difetto.TopologicalChain": ["RUN_NL_CHAIN"],
+        "OpenROAD.DumpCongestionHeatmap": ["RUN_DUMP_CONGESTION_HEATMAP"],
     }
 
 

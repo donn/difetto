@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: Unlicense
 # Copyright (c) 2025 Mohamed Gaber
-import curses
-from concurrent.futures import ThreadPoolExecutor
-import subprocess
+import os
 import sys
-from time import sleep
-from librelane.flows import Flow, FlowError
-from librelane.logging import set_log_level, options
-from pathlib import Path
 import math
 import queue
+import curses
 import fnmatch
+import subprocess
+from time import sleep
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+
+from librelane.flows import Flow, FlowError
+from librelane.logging import set_log_level, options
 
 __file_dir__ = Path(__file__).absolute().parent
 difetto_root = __file_dir__.parent
@@ -66,7 +68,7 @@ def run_test(tup):
                 "VERILOG_FILES": [top_clean],
                 "CLOCK_PORT": "CK",
                 "CLOCK_PERIOD": 10,
-                "FP_CORE_UTIL": 45,
+                "FP_CORE_UTIL": 40,
                 "DFT_TEST_MODE_WIRE": "tm",
                 "DFT_TEST_CLOCK_WIRE": "CK",
                 "DFT_SCAN_IN_PATTERN": "sci",
@@ -79,9 +81,11 @@ def run_test(tup):
                 "RUN_PL_CHAIN": run_pl_chain,
                 "RUN_NL_CHAIN": run_nl_chain,
                 "DRT_THREADS": 1,
-                "RUN_POST_CTS_RESIZER_TIMING": False,
-                "RUN_POST_GRT_RESIZER_TIMING": False,
+                "RUN_POST_CTS_RESIZER_TIMING": True,
+                "RUN_POST_GRT_RESIZER_TIMING": True,
                 "DRT_ANTENNA_REPAIR_ITERS": 0,
+                "GRT_ALLOW_CONGESTION": True,
+                "RUN_DUMP_CONGESTION_HEATMAP": True,
             },
             design_dir=design_dir,
             pdk="sky130A",
@@ -124,7 +128,9 @@ def run_tests(screen: curses.window):
     max_y, max_x = screen.getmaxyx()
 
     for test in sorted(tests_dir.glob("*.v")):
-        if test.stem == "s1488":
+        if test.stem == "s1488":  # broken
+            continue
+        if test.stem.endswith("a"):  # dupe
             continue
         if not fnmatch.fnmatch(test.stem, pattern):
             continue
@@ -141,7 +147,7 @@ def run_tests(screen: curses.window):
         screen.getkey()
         exit(-1)
 
-    tpe = ThreadPoolExecutor(16)
+    tpe = ThreadPoolExecutor(os.cpu_count())
     futures = tpe.map(run_test, status)
 
     while True:
