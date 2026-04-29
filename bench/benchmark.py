@@ -152,7 +152,7 @@ def run_tests(screen: curses.window):
         screen.getkey()
         exit(-1)
 
-    tpe = ThreadPoolExecutor(os.cpu_count())
+    tpe = ThreadPoolExecutor(int(os.getenv("BENCH_CORES", os.cpu_count())))
     futures = tpe.map(run_test, status)
 
     while True:

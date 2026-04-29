@@ -2,7 +2,7 @@
   inputs = {
     librelane.url = "github:librelane/librelane";
     nl2bench = {
-      url = "github:donn/nl2bench/nixos_25.11";
+      url = "github:donn/nl2bench";
       inputs.nix-eda.follows = "librelane/nix-eda";
     };
   };
@@ -45,7 +45,7 @@
               format = "wheel";
               dist = "py3";
               python = "py3";
-              sha256 = "sha256-3qqJdbyxn1r49j+B2/w6rMsuxMdiw2KkfVl5XsTSeDo=";
+              sha256 = "sha256-bgYpW3e8qQKiyci6Z8eIHsKiz/de951t4fL31Y574wI=";
             };
             doCheck = false;
             preBuild = "";

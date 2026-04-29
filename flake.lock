@@ -169,16 +169,15 @@
         "quaigh": "quaigh"
       },
       "locked": {
-        "lastModified": 1768688997,
-        "narHash": "sha256-sm+LIE6scNX7+o0luO/cDFkFtvMQLNaOD+OAecSQCFw=",
+        "lastModified": 1777493983,
+        "narHash": "sha256-QY90b9hKxAt68xYvRbcMXbDrLTQwsx9TpG8+CGG8iK8=",
         "owner": "donn",
         "repo": "nl2bench",
-        "rev": "20d66faa934b7a09fff56ae0f0ce59d0804ed5ce",
+        "rev": "0c5aadc0119c6178357102f7eb8ff2bdb0dc8a12",
         "type": "github"
       },
       "original": {
         "owner": "donn",
-        "ref": "nixos_25.11",
         "repo": "nl2bench",
         "type": "github"
       }
