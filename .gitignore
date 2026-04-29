@@ -4,5 +4,5 @@ venv
 __pycache__
 *.pyc
 requirements.txt
-runs/
+runs*/
 /sim_build

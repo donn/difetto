@@ -26,6 +26,8 @@ scl::sky130_fd_sc_hd:
   DFT_JSON_MAPPING: dir::../../tech/sky130_fd_sc_hd_mapping.json
 scl::gf180mcu_fd_sc_mcu7t5v0:
   DFT_JSON_MAPPING: dir::../../tech/gf180mcu_fd_sc_mcu7t5v0_mapping.json
+scl::sg13g2_stdcell:
+  DFT_JSON_MAPPING: dir::../../tech/sg13g2_stdcell_mapping.json
 DFT_BSCAN_EXCLUDE_IO:
   - clk
   - tm

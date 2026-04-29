@@ -2,12 +2,12 @@
 # Copyright (c) 2025 Mohamed Gaber
 import xlsxwriter
 from xlsxwriter.utility import xl_rowcol_to_cell
-import csv
 import re
 import sys
 import json
 import yaml
 from pathlib import Path
+from congestion import get_congestion_scores
 
 __file_dir__ = Path(__file__).parent
 
@@ -16,6 +16,7 @@ worksheet = workbook.add_worksheet()
 
 cols = [
     "Design",
+    "Standard Cell Library",
     "Cell Count",
     "Scannable Elements",
     "Scannable Element Ratio",
@@ -29,8 +30,7 @@ for metric in [
     # "Worst Slack",
     # "Total Negative Slack",
     "Routing Time",
-    "Average Congestion",
-    "Congested Cells",
+    "Congestion Score",
 ]:
     for strat in ["skip", "fault", "basic", "opt"]:
         cols.append(f"{metric} ({strat})")
@@ -71,20 +71,6 @@ def wf(name, data, format=None):
     global col_by_name
     worksheet.write_formula(row, col_by_name[name], data, format)
 
-
-def get_congestion_scores(csv_path, threshold=80):
-    r = csv.reader(open(csv_path))
-    next(r)
-
-    gcell_count = 0
-    congested_cells = 0
-    total_congestion = 0
-    for item in r:
-        gcell_count += 1
-        congestion = float(item[-1])
-        congested_cells += int(congestion > threshold)
-        total_congestion += congestion
-    return congestion / gcell_count, congested_cells / gcell_count
 
 
 percent_format = workbook.add_format({"num_format": "0.00%"})
@@ -128,6 +114,7 @@ for design_dir_raw in sys.argv[1:]:
         w("Design", test_name)
         if strat == "opt":
             dft_dir = next(final_dir.parent.glob("*-difetto-chain"))
+            w("Standard Cell Library", drt_conf["STD_CELL_LIBRARY"])
             w("Cell Count", synth_metrics["design__instance__count"])
             w(
                 "Scannable Elements",
@@ -164,18 +151,17 @@ for design_dir_raw in sys.argv[1:]:
             f"Routing Time ({strat})",
             get_elapsed_drt_time(drt_dir / "openroad-detailedrouting.log"),
         )
-        avg_congestion, congested_cells = get_congestion_scores(
+        _, _, congestion_score = get_congestion_scores(
             heatmap_dir / "congestion.csv"
         )
+        # w(
+        #     f"Average Congestion ({strat})",
+        #     avg_congestion,
+        #     percent_format,
+        # )
         w(
-            f"Average Congestion ({strat})",
-            avg_congestion,
-            percent_format,
-        )
-        w(
-            f"Congested Cells ({strat})",
-            congested_cells,
-            percent_format,
+            f"Congestion Score ({strat})",
+            congestion_score
         )
 
 first_se_ratio = xl_rowcol_to_cell(1, col_by_name["Scannable Element Ratio"])
@@ -184,8 +170,7 @@ for metric in [
     # "Worst Slack",
     # "Total Negative Slack",
     "Routing Time",
-    "Average Congestion",
-    "Congested Cells",
+    "Congestion Score",
 ]:
     for strat in ["fault", "basic", "opt"]:
         base = f"{metric} (skip)"

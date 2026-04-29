@@ -38,7 +38,10 @@ def scan_replace(output, chain_out, config_in, input):
     en = module.wire(f"\\{config['DFT_SCAN_ENABLE_PATTERN']}")
 
     with open(config["DFT_JSON_MAPPING"]) as f:
-        scannable_modules = [f"\\{name}" for name in json.load(f)["mapping"].values()]
+        mapping_json = json.load(f)
+        scannable_modules = [f"\\{name}" for name in mapping_json["mapping"].values()]
+        scan_in_name = f"\\{mapping_json['vars']['cell_sci']}"
+        scan_enable_name = f"\\{mapping_json['vars']['cell_sce']}"
 
     def_escape_characters = re.compile(r"(\[|\])")
     insts = []
@@ -48,8 +51,8 @@ def scan_replace(output, chain_out, config_in, input):
         if cell.type in scannable_modules:
             print(cell.name)
             insts.append(def_escape_characters.sub(r"\\\1", cell.name.str()[1:]))
-            cell.setPort("\\SCD", ys.SigSpec(last))
-            cell.setPort("\\SCE", ys.SigSpec(en))
+            cell.setPort(scan_in_name, ys.SigSpec(last))
+            cell.setPort(scan_enable_name, ys.SigSpec(en))
             last = cell.getPort("\\Q")
             counter += 1
     module.connect(ys.SigSpec(sink), ys.SigSpec(last))

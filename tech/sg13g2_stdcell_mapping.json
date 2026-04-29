@@ -1,0 +1,14 @@
+{
+    "meta": {"version": 1}, 
+    "vars": {
+        "cell_sci": "SCD",
+        "cell_sce": "SCE"
+    },
+    "mapping": {
+        "sg13g2_dfbbp_1": "sg13g2_sdfbbp_1",
+        "sg13g2_dfrbp_1": "sg13g2_sdfrbp_1",
+        "sg13g2_dfrbp_2": "sg13g2_sdfrbp_2",
+        "sg13g2_dfrbpq_1": "sg13g2_sdfrbpq_1",
+        "sg13g2_dfrbpq_2": "sg13g2_sdfrbpq_2"
+    }
+}
