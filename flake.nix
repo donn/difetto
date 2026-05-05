@@ -80,8 +80,8 @@
       system: let
         pkgs = self.legacyPackages."${system}";
       in {
-        default = pkgs.librelane-shell.override({
-          extra-packages = with pkgs; [quaigh python3.pkgs.nl2bench];
+        default = (pkgs.librelane-shell.override({
+          extra-packages = with pkgs; [quaigh python3.pkgs.nl2bench qt5.qtbase qt5.qtcharts];
           extra-python-packages = ps: with ps; [
             # for testing/benchmarking
             xlsxwriter
@@ -92,6 +92,11 @@
             pyqt6
           ];
           librelane-plugins = ps: with ps; [librelane-plugin-difetto];
+        })).overrideDerivation (old: {
+          shellHook = (old.shellHook or "") + ''
+            export PDK_ROOT=''${PDK_ROOT:-$HOME/.volare}
+            export PATH=$PWD/build/with_venv:$PATH
+          '';
         });
       }
     );
