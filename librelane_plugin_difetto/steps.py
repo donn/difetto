@@ -443,6 +443,21 @@ class DumpCongestionHeatmap(OpenROADStep):
         return cmd
 
 
+@Step.factory.register()
+class ReportScanChainWL(OpenROADStep):
+    """
+    Reports the routed wirelength of scan-chain nets after detailed routing.
+    Identifies scan nets by SCD (scan-in) iterm connections.
+    """
+
+    id = "OpenROAD.ReportScanChainWL"
+
+    def get_script_path(self):
+        return os.path.join(
+            __file_dir__, "scripts", "openroad", "report_scan_wl.tcl"
+        )
+
+
 class CocotbStep(Step):
     inputs = [DesignFormat.nl]
     outputs = []

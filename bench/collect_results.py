@@ -20,22 +20,19 @@ cols = [
     "Cell Count",
     "Scannable Elements",
     "Scannable Element Ratio",
-    "Internal TWL (Pre-Opt)",
-    "Internal TWL (Post-Opt)",
-    "TWL (Pre-Opt)",
-    "TWL (Post-Opt)",
-    "TWL Drop",
 ]
 for metric in [
     # "Worst Slack",
     # "Total Negative Slack",
     "Routing Time",
     "Congestion Score",
+    "Scan Chain Routed WL",
 ]:
     for strat in ["skip", "fault", "basic", "opt"]:
         cols.append(f"{metric} ({strat})")
+    base_strat = "basic" if metric == "Scan Chain Routed WL" else "skip"
     for strat in ["skip", "fault", "basic", "opt"]:
-        if strat != "skip":
+        if strat != "skip" and strat != base_strat:
             cols.append(f"{metric} Impact ({strat})")
 cols.append("Routing Threads")
 
@@ -97,14 +94,13 @@ for design_dir_raw in sys.argv[1:]:
             synth_run = final_dir.parents[1] / "synth"
             synth_dir = next(synth_run.glob("*-difetto-synthesis"))
         drt_dir = next(final_dir.parent.glob("*-openroad-detailedrouting"))
-        try:
-            heatmap_dir = next(
-                final_dir.parent.glob("*-openroad-dumpcongestionheatmap")
-            )
-        except StopIteration:
-            heatmap_dir = next(
-                final_dir.parent.glob("*-openroad-dumpheatmaps")
-            )  # old step
+        heatmap_dir = next(
+            final_dir.parent.glob("*-openroad-dumpcongestionheatmap"),
+            None,
+        ) or next(
+            final_dir.parent.glob("*-openroad-dumpheatmaps"),  # old step
+            None,
+        )
         with open(synth_dir / "state_out.json") as f:
             synth_metrics = json.load(f)["metrics"]
         with open(drt_dir / "state_out.json") as f:
@@ -118,51 +114,37 @@ for design_dir_raw in sys.argv[1:]:
             w("Cell Count", synth_metrics["design__instance__count"])
             w(
                 "Scannable Elements",
-                len(
-                    yaml.safe_load(next(dft_dir.glob("*.chain.yml")).read_text())[0][
-                        "partitions"
-                    ][0]["scan_lists"][0]["insts"]
+                sum(
+                    len(sl["insts"])
+                    for chain in yaml.safe_load(next(dft_dir.glob("*.chain.yml")).read_text())
+                    for part in chain["partitions"]
+                    for sl in part["scan_lists"]
                 ),
             )
             cells_ref = xl_rowcol_to_cell(row, col_by_name["Cell Count"])
             scannable_ref = xl_rowcol_to_cell(row, col_by_name["Scannable Elements"])
             wf("Scannable Element Ratio", f"={scannable_ref}/{cells_ref}")
             w("Routing Threads", drt_conf["DRT_THREADS"])
-            w(
-                "Internal TWL (Pre-Opt)",
-                drt_metrics["dft__chain_twl_internal__init__chain:chain_0"],
-            )
-            w(
-                "Internal TWL (Post-Opt)",
-                drt_metrics["dft__chain_twl_internal__post_opt__chain:chain_0"],
-            )
-            w(
-                "TWL (Pre-Opt)",
-                drt_metrics["dft__chain_twl__init__chain:chain_0"],
-            )
-            w(
-                "TWL (Post-Opt)",
-                drt_metrics["dft__chain_twl__post_opt__chain:chain_0"],
-            )
-            twl_pre_ref = xl_rowcol_to_cell(row, col_by_name["TWL (Pre-Opt)"])
-            twl_post_ref = xl_rowcol_to_cell(row, col_by_name["TWL (Post-Opt)"])
-            wf("TWL Drop", f"=({twl_pre_ref}-{twl_post_ref})/{twl_pre_ref}")
         w(
             f"Routing Time ({strat})",
             get_elapsed_drt_time(drt_dir / "openroad-detailedrouting.log"),
         )
-        _, _, congestion_score = get_congestion_scores(
-            heatmap_dir / "congestion.csv"
+        if heatmap_dir is not None and (heatmap_dir / "congestion.csv").exists():
+            _, _, congestion_score = get_congestion_scores(
+                heatmap_dir / "congestion.csv"
+            )
+            w(f"Congestion Score ({strat})", congestion_score)
+        scan_wl_dir = next(
+            final_dir.parent.glob("*-openroad-reportscanchainwl"), None
         )
-        # w(
-        #     f"Average Congestion ({strat})",
-        #     avg_congestion,
-        #     percent_format,
-        # )
-        w(
-            f"Congestion Score ({strat})",
-            congestion_score
-        )
+        if scan_wl_dir is not None and (scan_wl_dir / "state_out.json").exists():
+            with open(scan_wl_dir / "state_out.json") as f:
+                scan_wl_metrics = json.load(f)["metrics"]
+            if "dft__scan_chain_routed_wl__um" in scan_wl_metrics:
+                w(
+                    f"Scan Chain Routed WL ({strat})",
+                    scan_wl_metrics["dft__scan_chain_routed_wl__um"],
+                )
 
 first_se_ratio = xl_rowcol_to_cell(1, col_by_name["Scannable Element Ratio"])
 last_se_ratio = xl_rowcol_to_cell(row, col_by_name["Scannable Element Ratio"])
@@ -171,9 +153,13 @@ for metric in [
     # "Total Negative Slack",
     "Routing Time",
     "Congestion Score",
+    "Scan Chain Routed WL",
 ]:
     for strat in ["fault", "basic", "opt"]:
-        base = f"{metric} (skip)"
+        base_strat = "basic" if metric == "Scan Chain Routed WL" else "skip"
+        if strat == base_strat:
+            continue
+        base = f"{metric} ({base_strat})"
         ref = f"{metric} ({strat})"
         calculated = f"{metric} Impact ({strat})"
         first = xl_rowcol_to_cell(1, col_by_name[calculated])

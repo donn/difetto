@@ -23,6 +23,7 @@ class DifettoPNR(Classic):
             "OpenROAD.RepairDesign",
         ),  # SCE has |scannable_element_count| fanout
         ("+OpenROAD.ResizerTimingPostGRT", "OpenROAD.DumpCongestionHeatmap"),
+        ("+OpenROAD.DetailedRouting", "OpenROAD.ReportScanChainWL"),
     ]
 
     config_vars = Classic.config_vars + [
