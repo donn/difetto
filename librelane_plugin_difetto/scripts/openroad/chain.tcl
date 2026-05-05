@@ -39,7 +39,7 @@ puts $fptr "      - '[[$inst getInst] getName]'"
 }
 
 set_dft_config\
-    -max_chains 1\
+    -max_length 10\
     -scan_enable_name_pattern $::env(DFT_SCAN_ENABLE_PATTERN)\
     -scan_in_name_pattern $::env(DFT_SCAN_IN_PATTERN)\
     -scan_out_name_pattern $::env(DFT_SCAN_OUT_PATTERN)
