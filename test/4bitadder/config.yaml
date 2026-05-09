@@ -19,12 +19,10 @@ PDN_VPITCH: 30
 PDN_HPITCH: 30
 PDN_SKIPTRIM: true
 
-# Technology-Specific Configs
-pdk::sky130*:
-  FP_CORE_UTIL: 45
-  CLOCK_PERIOD: 8
+FP_CORE_UTIL: 45
 
 # DFT
+DFT_COCOTB_TIMESCALE: ["1ns", "100ps"]
 DFT_TV_TEST_THREADS: 1 # like 10 test vectors total; parallelization is a penalty
 DFT_TEST_MODE_WIRE: tm
 DFT_TEST_CLOCK_WIRE: clk

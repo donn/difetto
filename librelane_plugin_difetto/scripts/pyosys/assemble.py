@@ -68,7 +68,7 @@ def assemble(tvs_out, au_out, mask_out, raw_tvs, raw_au, chain_yml, config_in, i
             # if wire.upto: # nl2bench always presumes the msb is first
             #     frm, to = to, frm
             for i in range(frm - 1, to - 1, -1):
-                bit_name = name_str[1:] + f"\\[{i}\\]"
+                bit_name = name_str[1:] + f"[{i}]"
                 if wire.port_input:
                     name_by_tv_location.append(bit_name)
                 elif wire.port_output:
@@ -79,6 +79,7 @@ def assemble(tvs_out, au_out, mask_out, raw_tvs, raw_au, chain_yml, config_in, i
     bsr_rx = re.compile(
         r"^(?P<name>[\w]+)\.(?P<io>[io])bsr\/(?P<edge>rising|falling)\.bits\\\[(?P<bit>\d+)\\\]\._store_"
     )
+    verilog_escape_rx = re.compile(r"([\[\]])")
     for loc, instance in enumerate(chain.partitions[0].scan_lists[0].insts):
         name = instance.name
         if bsr_match := bsr_rx.match(instance.name):
@@ -89,13 +90,15 @@ def assemble(tvs_out, au_out, mask_out, raw_tvs, raw_au, chain_yml, config_in, i
 
     tv_assembly_locations = []
     for name in name_by_tv_location:
-        loc = assembled_location_by_name[name]
+        name_escaped = verilog_escape_rx.sub(r"\\\1", name)
+        loc = assembled_location_by_name[name_escaped]
         tv_assembly_locations.append(loc)
 
     mask = bitarray.bitarray("0" * chain_length, endian="little")
     au_assembly_locations = []
     for name in name_by_au_location:
-        loc = assembled_location_by_name[name]
+        name_escaped = verilog_escape_rx.sub(r"\\\1", name)
+        loc = assembled_location_by_name[name_escaped]
         mask[loc] = 1
         au_assembly_locations.append(loc)
 

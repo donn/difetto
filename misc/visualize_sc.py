@@ -5,7 +5,7 @@ import matplotlib
 
 from reader import OdbReader
 
-matplotlib.use("qtagg")
+# matplotlib.use("qtagg")
 
 
 reader = OdbReader(sys.argv[1])

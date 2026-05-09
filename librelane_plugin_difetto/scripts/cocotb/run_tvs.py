@@ -152,6 +152,9 @@ if __name__ == "__main__":
         config_dict = json.load(open(config, encoding="utf8"))
         runner = get_runner(config_dict["DFT_COCOTB_SIM"])
         print("%OL_CREATE_REPORT compile.rpt", flush=True)
+        extra_build_kwargs = {}
+        if timescale_tuple := config_dict["DFT_COCOTB_TIMESCALE"]:
+            extra_build_kwargs["timescale"] = tuple(timescale_tuple)
         runner.build(
             sources=sources,
             defines={"FUNCTIONAL": True},
@@ -159,6 +162,7 @@ if __name__ == "__main__":
             always=True,
             waves=True,
             build_dir=os.getenv("SIM_BUILD", "sim_build"),
+            **extra_build_kwargs,
         )
         print("%OL_END_REPORT", flush=True)
         extra_env = {

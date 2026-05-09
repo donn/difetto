@@ -7,7 +7,7 @@ import subprocess
 from decimal import Decimal
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import ClassVar, List, Literal, Optional, Set
+from typing import ClassVar, List, Literal, Optional, Set, Tuple
 
 from .scripts.common.patterns import read_patterns_bin
 
@@ -442,9 +442,18 @@ class DumpCongestionHeatmap(OpenROADStep):
         cmd.insert(cmd.index("openroad") + 1, "-gui")  # needs -gui
         return cmd
 
+@Step.factory.register()
+class WriteLogicalNL(OpenROADStep):
+    id = "Difetto.WriteLogicalNL"
+    name = "Write Logical Netlist"
+    outputs = [DesignFormat.logical_nl, DesignFormat.logical_pnl]
+
+    def get_script_path(self):
+        return os.path.join(get_script_dir(), "openroad", "write_views.tcl")
+
 
 class CocotbStep(Step):
-    inputs = [DesignFormat.nl]
+    inputs = [DesignFormat.logical_nl]
     outputs = []
 
     _cocotb_python_bin: ClassVar[Optional[str]] = None
@@ -455,6 +464,11 @@ class CocotbStep(Step):
             Literal["icarus"],
             "The simulator to use for Cocotb.",
             default="icarus",
+        ),
+        Variable(
+            "DFT_COCOTB_TIMESCALE",
+            Optional[Tuple[str, str]],
+            "The timescale to use with Cocotb."
         )
     ]
 
